@@ -7,7 +7,6 @@ import { deriveDashboard, DashFilter } from "@/lib/dashboard";
 import type { Scope } from "@/lib/tree";
 import { titleFor } from "@/lib/tree";
 
-const SCOPES: Scope[] = ["Region", "District", "Zone", "Area", "Section"];
 const FILTERS: DashFilter[] = ["All", "Not submitted", "Pending approval", "Chronic"];
 
 export function ComplianceDashboard() {
@@ -45,17 +44,6 @@ export function ComplianceDashboard() {
             <Button variant="secondary" padding="9px 13px" fontSize={12.5}>Export CSV</Button>
             <Button variant="dark" padding="9px 13px" fontSize={12.5}>Export PDF</Button>
           </div>
-        </div>
-        <div style={{ display: "flex", gap: 22, marginTop: 20 }}>
-          {SCOPES.map((s) => (
-            <div
-              key={s}
-              onClick={() => set({ scope: s, path: [] })}
-              style={{ cursor: "pointer", paddingBottom: 11, fontSize: 13, fontWeight: 600, letterSpacing: "-0.01em", borderBottom: `2px solid ${state.scope === s ? colors.red : "transparent"}`, color: state.scope === s ? colors.ink : colors.faint }}
-            >
-              {s}
-            </div>
-          ))}
         </div>
       </div>
 

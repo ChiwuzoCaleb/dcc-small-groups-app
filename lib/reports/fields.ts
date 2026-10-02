@@ -52,7 +52,7 @@ export const REPORT_STEPS: ReportStep[] = [
     hint: "Attendance, guests and visitation for this Sunday.",
     fields: [
       { key: "members_present", label: "Members Present" },
-      { key: "no_of_meeting_held", label: "Meetings Held" },
+      //{ key: "no_of_meeting_held", label: "Meetings Held" },
       { key: "guests_cards", label: "Guest Cards Received", group: "Guest / Decision Cards" },
       { key: "decisions_card", label: "Decision Cards Received", group: "Guest / Decision Cards" },
       { key: "guest_visitation", label: "Guests — Total Visitation", group: "Guest / Decision Cards" },
@@ -94,7 +94,7 @@ export const REPORT_STEPS: ReportStep[] = [
   },
   {
     category: "Comments",
-    hint: "The offering currency and anything else worth recording.",
+    hint: "Additional comments or feedback (optional).",
     fields: [],
   },
 ];

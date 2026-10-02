@@ -129,11 +129,26 @@ function OrgRow({ level, unit }: { level: string; unit?: ReportOrgUnit | null })
 export function ReportDetailDialog({
   report,
   onOpenChange,
+  open,
+  loading = false,
+  cellName,
+  serviceDate,
+  notice,
+  error,
+  noReport = false,
 }: {
   /** The report to show; `null` keeps the dialog closed. */
   report: SundayReport | null;
   onOpenChange: (open: boolean) => void;
+  open?: boolean;
+  loading?: boolean;
+  cellName?: string;
+  serviceDate?: string;
+  notice?: string;
+  error?: string;
+  noReport?: boolean;
 }) {
+  const dialogOpen = open ?? report !== null;
   const cell: ReportCell | null = report && typeof report.cell === "object" ? report.cell : null;
   const cellRef = report && typeof report.cell === "string" ? report.cell : null;
 
@@ -153,8 +168,8 @@ export function ReportDetailDialog({
   const region = district?.region;
 
   return (
-    <Dialog open={report !== null} onOpenChange={onOpenChange}>
-      {report && (
+    <Dialog open={dialogOpen} onOpenChange={onOpenChange}>
+      {report ? (
         <DialogContent className="flex max-h-[90vh] flex-col gap-0 p-0 sm:max-w-2xl">
           <DialogHeader className="border-b p-5 pr-12">
             <DialogTitle className="text-base">
@@ -168,6 +183,7 @@ export function ReportDetailDialog({
           </DialogHeader>
 
           <div className="flex-1 space-y-7 overflow-y-auto p-5">
+            {notice && <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-900">{notice}</p>}
             <Section title="Overview">
               <dl className="grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-3">
                 <Field label="Service date">{fullDate(report.service_date)}</Field>
@@ -255,7 +271,29 @@ export function ReportDetailDialog({
             )}
           </div>
         </DialogContent>
-      )}
+      ) : dialogOpen ? (
+        <DialogContent className="flex max-h-[90vh] flex-col gap-0 p-0 sm:max-w-lg">
+          <DialogHeader className="border-b p-5 pr-12">
+            <DialogTitle className="text-base">Cell report</DialogTitle>
+            <DialogDescription>{cellName ?? "Selected cell"} · {fullDate(serviceDate)}</DialogDescription>
+          </DialogHeader>
+          <div className="p-5">
+            {loading ? (
+              <p className="text-sm text-muted-foreground">Loading report details…</p>
+            ) : error ? (
+              <p className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">{error}</p>
+            ) : noReport ? (
+              <p className="rounded-md border border-border bg-muted/40 px-4 py-3 text-sm leading-relaxed text-foreground">
+                This cell has not submitted a report for the selected week.
+              </p>
+            ) : (
+              <p className="text-sm leading-relaxed text-muted-foreground">
+                No report details are available for this cell and selected week.
+              </p>
+            )}
+          </div>
+        </DialogContent>
+      ) : null}
     </Dialog>
   );
 }

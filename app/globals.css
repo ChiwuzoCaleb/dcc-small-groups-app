@@ -111,11 +111,11 @@ body {
   color: #12161c;
 }
 
-a {
+a:not([data-slot="sidebar-menu-button"]) {
   color: #b01e28;
   text-decoration: none;
 }
-a:hover {
+a:not([data-slot="sidebar-menu-button"]):hover {
   color: #8c1720;
 }
 
@@ -140,13 +140,6 @@ select {
 .dcc-table-scroll {
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
-}
-
-@media (max-width: 900px) {
-  .dcc-wizard {
-    grid-template-columns: 1fr !important;
-    padding: 16px !important;
-  }
 }
 
 .dark {

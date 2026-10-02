@@ -29,6 +29,15 @@ export function useReports(params?: { page?: number } & QueryParams) {
   );
 }
 
+/** All reports visible to the signed-in leader, loaded only when a cell detail is opened. */
+export function useScopedReportsForCell(enabled: boolean) {
+  return useApiAllPagesQuery<SundayReport>(
+    queryKeys.reports.all,
+    API_ROUTES.reports,
+    { query: { enabled } },
+  );
+}
+
 /** Same list, as an infinite query for "load more" UIs. */
 export function useInfiniteReports(params?: QueryParams) {
   return useApiInfiniteQuery<SundayReport>(

@@ -15,7 +15,6 @@ export default function ReportPage() {
     () => (mine.data ?? []).find((r) => r.service_date === serviceDate) ?? null,
     [mine.data, serviceDate],
   );
-
   return (
     <>
       <PageHeader eyebrow="Sunday report" title={`For ${formatServiceDate(new Date(serviceDate))}`} sub={serviceDate} />

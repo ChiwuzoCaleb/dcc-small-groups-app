@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { colors, mono } from "@/lib/tokens";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -12,6 +12,8 @@ import { PageHeader, Card, LinkButton } from "@/components/ui";
 import { mostRecentSunday, formatServiceDate } from "@/lib/dates";
 import { useMyReports, useMyReportsPage } from "@/hooks/api/reports";
 import { ReportDetailDialog } from "@/components/leader/ReportDetailDialog";
+import { useAuth } from "@/hooks/useAuth";
+import { displayNameFrom } from "@/components/coordinator/kit";
 import {
   Table,
   TableBody,
@@ -27,17 +29,16 @@ const naira = new Intl.NumberFormat("en-NG", {
   maximumFractionDigits: 0,
 });
 
-/** Pastoral follow-up touches logged for a week — the four "Visitation Among Members" channels. */
-function followUpsOf(r: SundayReport): number {
-  return (
-    (r.physical_checkup ?? 0) +
-    (r.phone_checkup ?? 0) +
-    (r.text_checkup ?? 0) +
-    (r.email_checkup ?? 0)
-  );
-}
-
 export default function MyCellPage() {
+  const { user } = useAuth();
+  const [greeting, setGreeting] = useState("Good morning");
+
+  useEffect(() => {
+    const hour = new Date().getHours();
+    setGreeting(hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening");
+  }, []);
+
+  const leaderName = displayNameFrom(user);
   const serviceDate = useMemo(
     () => mostRecentSunday(new Date()).toISOString().slice(0, 10),
     [],
@@ -134,15 +135,14 @@ export default function MyCellPage() {
       (sum, r) => sum + (r.total_offering ?? 0),
       0,
     );
-    const totalFollowUps = reports.reduce((sum, r) => sum + followUpsOf(r), 0);
-    return { approved, pending, avgAttendance, totalOffering, totalFollowUps };
+    return { approved, pending, avgAttendance, totalOffering };
   }, [reports]);
 
   return (
     <>
       <PageHeader
         eyebrow="My cell"
-        title="Cell Leader"
+        title={`${greeting}${leaderName ? `, ${leaderName}` : ""}`}
         sub="Your Sunday reporting at a glance"
       />
       <div
@@ -154,31 +154,55 @@ export default function MyCellPage() {
           maxWidth: 1100,
         }}
       >
-        {mine.isError ? (
-          <Card
-            style={{
-              padding: 20,
-              background: colors.redSoft,
-              borderColor: colors.redSoftBorder,
-            }}
-          >
-            <div style={{ fontSize: 13.5, color: colors.red }}>
-              Could not load your reports: {mine.error.message}
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 320px), 1fr))",
+            gap: 16,
+            alignItems: "stretch",
+          }}
+        >
+          <Card style={{ padding: 20 }}>
+            <div style={{ fontSize: 13, fontWeight: 600 }}>
+              Attendance, last reported 8 Sundays
             </div>
+            {mine.isLoading ? (
+              <Skeleton className="mt-4 h-24 w-full" />
+            ) : reports.length === 0 ? (
+              <div style={{ fontSize: 12.5, color: colors.faint, marginTop: 8 }}>
+                No attendance recorded yet.
+              </div>
+            ) : (
+              <AttendanceStrip reports={reports.slice(0, 8)} />
+            )}
           </Card>
-        ) : (
-          <NextActionCard
-            report={current}
-            serviceDate={serviceDate}
-            loading={mine.isLoading}
-          />
-        )}
+
+          {mine.isError ? (
+            <Card
+              style={{
+                padding: 20,
+                background: colors.redSoft,
+                borderColor: colors.redSoftBorder,
+              }}
+            >
+              <div style={{ fontSize: 13.5, color: colors.red }}>
+                Could not load your reports: {mine.error.message}
+              </div>
+            </Card>
+          ) : (
+            <NextActionCard
+              report={current}
+              serviceDate={serviceDate}
+              loading={mine.isLoading}
+            />
+          )}
+        </div>
 
         <div
           style={{
             display: "grid",
-            gridTemplateColumns: "repeat(auto-fit,minmax(170px,1fr))",
-            gap: 16,
+            gridTemplateColumns: "repeat(auto-fit,minmax(150px,1fr))",
+            gap: 12,
           }}
         >
           <StatCard
@@ -210,11 +234,6 @@ export default function MyCellPage() {
           <StatCard
             label="Avg attendance"
             value={String(stats.avgAttendance)}
-            loading={mine.isLoading}
-          />
-          <StatCard
-            label="Follow-ups logged"
-            value={String(stats.totalFollowUps)}
             loading={mine.isLoading}
           />
           <StatCard
@@ -383,20 +402,6 @@ export default function MyCellPage() {
           )}
         </Card>
 
-        <Card style={{ padding: 20 }}>
-          <div style={{ fontSize: 13, fontWeight: 600 }}>
-            Attendance, last 8 Sundays
-          </div>
-          {mine.isLoading ? (
-            <Skeleton className="mt-4 h-24 w-full" />
-          ) : reports.length === 0 ? (
-            <div style={{ fontSize: 12.5, color: colors.faint, marginTop: 8 }}>
-              No attendance recorded yet.
-            </div>
-          ) : (
-            <AttendanceStrip reports={reports.slice(0, 8)} />
-          )}
-        </Card>
       </div>
 
       <ReportDetailDialog
@@ -413,7 +418,6 @@ const SUBMISSION_COLUMNS: { key: string; label: string; align: Align }[] = [
   { key: "meeting", label: "Meeting", align: "left" },
   { key: "members", label: "Members", align: "right" },
   { key: "guests", label: "Guest cards", align: "right" },
-  { key: "followups", label: "Follow-ups", align: "right" },
   { key: "offering", label: "Offering", align: "right" },
   { key: "status", label: "Status", align: "right" },
 ];
@@ -487,9 +491,6 @@ function SubmissionTable({
               {r.guests_cards ?? "—"}
             </TableCell>
             <TableCell className="text-right tabular-nums">
-              {followUpsOf(r)}
-            </TableCell>
-            <TableCell className="text-right tabular-nums">
               {r.total_offering != null ? naira.format(r.total_offering) : "—"}
             </TableCell>
             <TableCell className="text-right">
@@ -503,7 +504,7 @@ function SubmissionTable({
 }
 
 function SubmissionTableSkeleton({ rows = 5 }: { rows?: number }) {
-  const widths = ["w-20", "w-14", "w-8", "w-8", "w-8", "w-16", "w-16"];
+  const widths = ["w-20", "w-14", "w-8", "w-8", "w-16", "w-16"];
   return (
     <Table>
       <HeaderRow />
@@ -570,7 +571,7 @@ function AttendanceStrip({ reports }: { reports: SundayReport[] }) {
         style={{
           display: "flex",
           alignItems: "flex-end",
-          gap: 10,
+          gap: 5,
           height: 110,
         }}
       >
@@ -601,7 +602,6 @@ function AttendanceStrip({ reports }: { reports: SundayReport[] }) {
               <div
                 style={{
                   width: "100%",
-                  maxWidth: 34,
                   borderRadius: "4px 4px 0 0",
                   minHeight: 3,
                   height: `${Math.max(4, (value / max) * 64)}px`,
@@ -637,6 +637,11 @@ function NextActionCard({
   loading: boolean;
 }) {
   const dueLabel = `${formatServiceDate(new Date(serviceDate))} report`;
+  const longDueDate = new Date(`${serviceDate}T00:00:00Z`).toLocaleDateString("en-GB", {
+    day: "numeric",
+    month: "long",
+    timeZone: "UTC",
+  });
 
   if (loading) {
     return (
@@ -720,20 +725,18 @@ function NextActionCard({
   }
 
   return (
-    <Card style={{ padding: 20, borderColor: colors.border }}>
-      <div
-        style={{
-          fontSize: 11.5,
-          fontWeight: 700,
-          color: colors.muted,
-          textTransform: "uppercase",
-          letterSpacing: "0.04em",
-        }}
-      >
-        Due
+    <Card style={{ padding: 20, borderColor: colors.redSoftBorder, background: "#FFFCFC" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+        <span style={{ width: 7, height: 7, borderRadius: 4, background: colors.red, flexShrink: 0 }} />
+        <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: colors.red }}>
+          Report due
+        </span>
       </div>
-      <div style={{ fontSize: 14, marginTop: 6, marginBottom: 10 }}>
-        {dueLabel} is outstanding.
+      <div style={{ fontSize: 20, lineHeight: 1.3, fontWeight: 600, marginBottom: 7 }}>
+        Your {longDueDate} report is not in yet
+      </div>
+      <div style={{ fontSize: 13, color: colors.muted, lineHeight: 1.6, marginBottom: 18 }}>
+        Complete your Sunday report in a few short steps.
       </div>
       <LinkButton href="/cell/report" variant="primary">
         Start report

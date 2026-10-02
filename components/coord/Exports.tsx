@@ -6,7 +6,6 @@ import { Button, Card, Chip } from "@/components/ui";
 import type { Scope } from "@/lib/tree";
 import { EXPORT_SET_DEFS, EXPORT_RECENT } from "@/lib/data";
 
-const SCOPES: Scope[] = ["Region", "District", "Zone", "Area", "Section"];
 const PERIODS = ["Last Sunday", "Last 4 Sundays", "Quarter to date", "Year to date"];
 
 export function Exports() {
@@ -35,13 +34,6 @@ export function Exports() {
       <div style={{ padding: "22px 28px 40px", display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(336px,1fr))", gap: 20, alignItems: "start" }}>
         <Card style={{ padding: "22px 24px" }}>
           <div style={{ fontSize: 15, fontWeight: 600, letterSpacing: "-0.02em", marginBottom: 18 }}>Build an export</div>
-
-          <div style={{ fontSize: 11.5, fontWeight: 600, color: colors.muted, marginBottom: 9 }}>Scope</div>
-          <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 20 }}>
-            {SCOPES.map((s) => (
-              <Chip key={s} label={s} active={state.expScope === s} onClick={() => set({ expScope: s })} />
-            ))}
-          </div>
 
           <div style={{ fontSize: 11.5, fontWeight: 600, color: colors.muted, marginBottom: 9 }}>Period</div>
           <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 20 }}>

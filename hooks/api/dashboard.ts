@@ -52,6 +52,26 @@ export function useDashboardApprovals() {
   );
 }
 
+/** Total pending approvals, preserving DRF's paginated `count` when present. */
+export function useDashboardApprovalCount() {
+  return useApiQuery<unknown, number | null>(
+    queryKeys.dashboard.approvals,
+    API_ROUTES.orgDashboardApprovals,
+    {
+      select: (data) => {
+        if (Array.isArray(data)) return data.length;
+        if (data && typeof data === "object") {
+          const page = data as { count?: unknown; results?: unknown };
+          if (typeof page.count === "number") return page.count;
+          if (Array.isArray(page.results)) return page.results.length;
+        }
+        return null;
+      },
+      refetchInterval: 60_000,
+    },
+  );
+}
+
 /** Cells in scope that have not submitted for the selected Sunday. `chronic` → missing 3+ consecutive Sundays. */
 export function useNonSubmitters(opts: { serviceDate?: string; chronic?: boolean } = {}) {
   const params = {
@@ -62,6 +82,59 @@ export function useNonSubmitters(opts: { serviceDate?: string; chronic?: boolean
     queryKeys.dashboard.nonSubmitters(params),
     API_ROUTES.orgDashboardNonSubmitters,
     { params, select: (d) => asArray<NonSubmitterRow>(d) },
+  );
+}
+
+/** One backend-paginated page of non-submitting cells; the API default page size is 10. */
+export function useNonSubmitterPage(opts: { serviceDate?: string; chronic?: boolean; page: number }) {
+  const params = {
+    ...(opts.serviceDate ? { service_date: opts.serviceDate } : {}),
+    ...(opts.chronic ? { chronic: true } : {}),
+    page: opts.page,
+  };
+  return useApiQuery<unknown, { rows: NonSubmitterRow[]; count: number }>(
+    queryKeys.dashboard.nonSubmitters(params),
+    API_ROUTES.orgDashboardNonSubmitters,
+    {
+      params,
+      select: (data) => {
+        if (Array.isArray(data)) return { rows: data as NonSubmitterRow[], count: data.length };
+        if (data && typeof data === "object") {
+          const page = data as { count?: unknown; results?: unknown };
+          if (Array.isArray(page.results)) {
+            return {
+              rows: page.results as NonSubmitterRow[],
+              count: typeof page.count === "number" ? page.count : page.results.length,
+            };
+          }
+        }
+        return { rows: [], count: 0 };
+      },
+    },
+  );
+}
+
+/** Total non-submitters or chronic cells, preserving DRF's paginated count. */
+export function useNonSubmitterCount(opts: { serviceDate?: string; chronic?: boolean } = {}) {
+  const params = {
+    ...(opts.serviceDate ? { service_date: opts.serviceDate } : {}),
+    ...(opts.chronic ? { chronic: true } : {}),
+  };
+  return useApiQuery<unknown, number | null>(
+    queryKeys.dashboard.nonSubmitters(params),
+    API_ROUTES.orgDashboardNonSubmitters,
+    {
+      params,
+      select: (data) => {
+        if (Array.isArray(data)) return data.length;
+        if (data && typeof data === "object") {
+          const page = data as { count?: unknown; results?: unknown };
+          if (typeof page.count === "number") return page.count;
+          if (Array.isArray(page.results)) return page.results.length;
+        }
+        return null;
+      },
+    },
   );
 }
 
