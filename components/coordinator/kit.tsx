@@ -72,6 +72,17 @@ export function displayNameFrom(user: Record<string, unknown> | null | undefined
   return name || null;
 }
 
+/** The Cell Leader's cell from the login profile (`code` is null until the backend returns it; `cell` is `{id, name}`). */
+export function cellFrom(user: Record<string, unknown> | null | undefined): { code: string | null; name: string | null; id: string | null } {
+  const text = (v: unknown) => (typeof v === "string" && v.trim() ? v.trim() : null);
+  const cell = user?.cell && typeof user.cell === "object" ? (user.cell as Record<string, unknown>) : null;
+  return {
+    code: text(user?.cell_code) ?? text(cell?.code) ?? text(cell?.cell_code) ?? text(user?.code),
+    name: text(cell?.name),
+    id: text(cell?.id),
+  };
+}
+
 /** The most recent Sunday whose reporting window has closed, as YYYY-MM-DD. */
 export function defaultServiceDate(): string {
   return lastClosedSundays(1, new Date())[0].toISOString().slice(0, 10);

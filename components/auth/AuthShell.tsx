@@ -20,20 +20,21 @@ export function AuthShell({
   bottomLeft?: ReactNode;
 }) {
   return (
-    <div style={{ minHeight: "100vh", background: colors.ink2, display: "flex", justifyContent: "center", padding: "40px 20px" }}>
+    <div className="dcc-auth-outer" style={{ minHeight: "100vh", background: colors.ink2, display: "flex", justifyContent: "center", padding: "40px 20px" }}>
       <div
+        className="dcc-auth-card"
         style={{
           width: "100%",
           maxWidth: 1180,
           borderRadius: 14,
           overflow: "hidden",
           display: "grid",
-          gridTemplateColumns: "repeat(auto-fit,minmax(380px,1fr))",
+          gridTemplateColumns: "repeat(auto-fit,minmax(min(100%,380px),1fr))",
           minHeight: 780,
           boxShadow: "0 40px 90px -30px rgba(0,0,0,.6)",
         }}
       >
-        <div style={{ background: colors.ink2, padding: "56px 52px", display: "flex", flexDirection: "column", justifyContent: "space-between", color: "#fff" }}>
+        <div className="dcc-auth-pane dcc-auth-brand" style={{ background: colors.ink2, padding: "56px 52px", display: "flex", flexDirection: "column", justifyContent: "space-between", color: "#fff" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 11 }}>
             <div style={{ width: 34, height: 34, borderRadius: 9, background: "#fff", overflow: "hidden", flexShrink: 0, position: "relative" }}>
               <Image src="/assets/daystar-logo.jpeg" alt="Daystar" fill style={{ objectFit: "cover" }} />
@@ -43,14 +44,14 @@ export function AuthShell({
               <div style={{ fontSize: 10.5, color: colors.faint, letterSpacing: "0.06em", textTransform: "uppercase" }}>{subtitle}</div>
             </div>
           </div>
-          <div style={{ maxWidth: 400 }}>
+          <div className="dcc-auth-brand-text" style={{ maxWidth: 400 }}>
             <div style={{ fontSize: 12, fontWeight: 600, letterSpacing: "0.09em", textTransform: "uppercase", color: colors.red, marginBottom: 14 }}>{roleLabel}</div>
-            <div style={{ fontSize: 32, fontWeight: 600, letterSpacing: "-0.04em", lineHeight: 1.18, marginBottom: 16 }}>{headline}</div>
-            <div style={{ fontSize: 14.5, lineHeight: 1.65, color: "#9AA3AE" }}>{blurb}</div>
+            <div className="dcc-auth-headline" style={{ fontSize: 32, fontWeight: 600, letterSpacing: "-0.04em", lineHeight: 1.18, marginBottom: 16 }}>{headline}</div>
+            <div className="dcc-auth-blurb" style={{ fontSize: 14.5, lineHeight: 1.65, color: "#9AA3AE" }}>{blurb}</div>
           </div>
-          <div>{bottomLeft}</div>
+          <div className="dcc-auth-bottom">{bottomLeft}</div>
         </div>
-        <div style={{ background: "#fff", padding: "56px 52px", display: "flex", flexDirection: "column", justifyContent: "center" }}>
+        <div className="dcc-auth-pane" style={{ background: "#fff", padding: "56px 52px", display: "flex", flexDirection: "column", justifyContent: "center" }}>
           {rightPane}
         </div>
       </div>

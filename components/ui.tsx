@@ -332,6 +332,7 @@ export function PageHeader({
 }) {
   return (
     <div
+      className="dcc-header"
       style={{
         position: "sticky",
         top: 0,
@@ -354,12 +355,12 @@ export function PageHeader({
             minWidth: 0,
           }}
         >
-          <div>
+          <div style={{ minWidth: 0 }}>
             {eyebrow && <div style={{ fontSize: 11.5, color: colors.faint, marginBottom: 6 }}>{eyebrow}</div>}
-            <div style={{ fontSize: 25, fontWeight: 600, letterSpacing: "-0.035em", lineHeight: 1.15 }}>{title}</div>
+            <div className="dcc-title" style={{ fontSize: 25, fontWeight: 600, letterSpacing: "-0.035em", lineHeight: 1.15 }}>{title}</div>
             {sub && <div style={{ fontSize: 13, color: colors.muted, marginTop: 5 }}>{sub}</div>}
           </div>
-          {right && <div style={{ display: "flex", gap: 9, alignItems: "center", flexShrink: 0 }}>{right}</div>}
+          {right && <div style={{ display: "flex", gap: 9, alignItems: "center", flexWrap: "wrap", minWidth: 0 }}>{right}</div>}
         </div>
       </div>
     </div>

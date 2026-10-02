@@ -3,6 +3,14 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Minus, Plus } from "lucide-react";
+import {
+  IconHeartHandshake,
+  IconMessageCircle,
+  IconPlant2,
+  IconUsers,
+  IconWorld,
+  type Icon,
+} from "@tabler/icons-react";
 import { colors, mono } from "@/lib/tokens";
 import { Card, Button, TextArea } from "@/components/ui";
 import {
@@ -23,6 +31,14 @@ function formatHours(seconds: number): string {
 }
 
 type Figures = Partial<Record<FigureKey, number | null>>;
+
+const STEP_ICONS: Record<string, Icon> = {
+  Membership: IconUsers,
+  Maturity: IconPlant2,
+  Ministry: IconHeartHandshake,
+  Mission: IconWorld,
+  Comments: IconMessageCircle,
+};
 
 /**
  * Every +/- field starts at 0.
@@ -284,6 +300,20 @@ export function ReportWizard({
     }
 
     /**
+     * Backend rule: total_offering must be >= 100 when currency is NGN
+     * and the meeting held.
+     */
+    const offering = values.total_offering;
+
+    if (offering == null || offering < 100) {
+      errors.total_offering = "Total Offering must be at least 100.";
+
+      setFieldErrors(errors);
+
+      return "total_offering";
+    }
+
+    /**
      * All other numeric fields can legitimately be 0.
      *
      * Therefore, we do NOT treat 0 as missing.
@@ -533,6 +563,7 @@ export function ReportWizard({
 
   return (
     <div
+      className="dcc-page"
       style={{
         padding: 28,
         display: "flex",
@@ -669,16 +700,22 @@ export function ReportWizard({
       >
         {meetingHeld && (
           <div
+            className="dcc-steps"
             style={{
               display: "flex",
               flexDirection: "column",
               gap: 4,
             }}
           >
-            {REPORT_STEPS.map((item, index) => (
+            {REPORT_STEPS.map((item, index) => {
+              const StepIcon = STEP_ICONS[item.category];
+              return (
               <button
                 key={item.category}
                 type="button"
+                className={index === step ? "dcc-step-active" : undefined}
+                aria-label={item.category}
+                aria-current={index === step ? "step" : undefined}
                 onClick={() => setStep(index)}
                 style={{
                   textAlign: "left",
@@ -699,9 +736,17 @@ export function ReportWizard({
                   cursor: "pointer",
                 }}
               >
-                {index + 1}. {item.category}
+                {StepIcon && (
+                  <span className="dcc-step-icon">
+                    <StepIcon size={22} stroke={1.8} />
+                  </span>
+                )}
+                <span className="dcc-step-label">
+                  {index + 1}. {item.category}
+                </span>
               </button>
-            ))}
+              );
+            })}
           </div>
         )}
 

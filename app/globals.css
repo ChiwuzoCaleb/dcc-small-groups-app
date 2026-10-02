@@ -142,6 +142,98 @@ select {
   -webkit-overflow-scrolling: touch;
 }
 
+/* Phone layout. Inline styles set the desktop values, so these use !important. */
+.dcc-step-icon {
+  display: none;
+}
+@media (max-width: 767px) {
+  .dcc-steps {
+    flex-direction: row !important;
+    gap: 6px !important;
+  }
+  .dcc-steps > button {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 8px 0 !important;
+  }
+  .dcc-steps .dcc-step-icon {
+    display: inline-flex;
+  }
+  .dcc-steps .dcc-step-label {
+    display: none;
+  }
+  .dcc-steps > button.dcc-step-active {
+    flex: 2.4;
+    gap: 6px;
+  }
+  .dcc-steps > button.dcc-step-active .dcc-step-label {
+    display: inline;
+    font-size: 12.5px;
+    white-space: nowrap;
+  }
+  .dcc-header {
+    padding: 10px 14px !important;
+  }
+  .dcc-title {
+    font-size: 20px !important;
+  }
+  .dcc-page {
+    padding: 14px !important;
+    gap: 14px !important;
+  }
+  .dcc-wizard {
+    grid-template-columns: minmax(0, 1fr) !important;
+    gap: 14px !important;
+  }
+  .dcc-auth-outer {
+    padding: 0 !important;
+  }
+  .dcc-auth-card {
+    border-radius: 0 !important;
+    min-height: 100vh !important;
+    grid-template-columns: minmax(0, 1fr) !important;
+    grid-template-rows: auto 1fr;
+  }
+  .dcc-auth-brand {
+    padding: 24px 20px 28px !important;
+    gap: 18px;
+  }
+  .dcc-auth-brand-text > div:first-child {
+    margin-bottom: 8px !important;
+  }
+  .dcc-auth-headline {
+    font-size: 21px !important;
+    margin-bottom: 0 !important;
+  }
+  .dcc-auth-blurb,
+  .dcc-auth-bottom {
+    display: none;
+  }
+  .dcc-auth-pane:not(.dcc-auth-brand) {
+    justify-content: flex-start !important;
+    border-radius: 18px 18px 0 0;
+    margin-top: -14px;
+  }
+  .dcc-auth-pane {
+    padding: 28px 20px !important;
+  }
+  /* 16px inputs stop iOS Safari zooming the page on focus. */
+  input,
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
+  /* Wide data tables scroll sideways inside their card instead of squashing. */
+  [data-slot="table"] {
+    min-width: 640px;
+  }
+  [data-slot="table-container"] {
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
 .dark {
   --sidebar: hsl(240 5.9% 10%);
   --sidebar-foreground: hsl(240 4.8% 95.9%);

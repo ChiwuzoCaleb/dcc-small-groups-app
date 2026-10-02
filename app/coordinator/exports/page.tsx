@@ -136,7 +136,7 @@ export default function ExportsPage() {
         sub="Pull the same figures the dashboard shows into a CSV for board and pastoral reporting."
       />
 
-      <div style={{ padding: 28, display: "flex", flexDirection: "column", gap: 18, maxWidth: 720 }}>
+      <div className="dcc-page" style={{ padding: 28, display: "flex", flexDirection: "column", gap: 18, maxWidth: 720 }}>
         <SectionCard
           title="Compliance summary"
           sub="Submitted, pending and missing counts. Scope: your assigned level — there's no way to

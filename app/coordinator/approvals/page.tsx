@@ -85,7 +85,7 @@ export default function ApprovalsPage() {
         }
       />
 
-      <div style={{ padding: 28, display: "flex", flexDirection: "column", gap: 18, maxWidth: 1200 }}>
+      <div className="dcc-page" style={{ padding: 28, display: "flex", flexDirection: "column", gap: 18, maxWidth: 1200 }}>
         {!capabilities.canApprove && (
           <Card style={{ padding: 16, background: colors.panel }}>
             <div style={{ fontSize: 12.5, color: colors.muted }}>

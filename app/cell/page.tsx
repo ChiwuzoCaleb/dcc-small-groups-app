@@ -13,7 +13,7 @@ import { mostRecentSunday, formatServiceDate } from "@/lib/dates";
 import { useMyReports, useMyReportsPage } from "@/hooks/api/reports";
 import { ReportDetailDialog } from "@/components/leader/ReportDetailDialog";
 import { useAuth } from "@/hooks/useAuth";
-import { displayNameFrom } from "@/components/coordinator/kit";
+import { cellFrom, displayNameFrom } from "@/components/coordinator/kit";
 import {
   Table,
   TableBody,
@@ -141,11 +141,12 @@ export default function MyCellPage() {
   return (
     <>
       <PageHeader
-        eyebrow="My cell"
+        eyebrow={(() => { const c = cellFrom(user); const label = c.code ?? c.name; return label ? `My cell · ${label}` : "My cell"; })()}
         title={`${greeting}${leaderName ? `, ${leaderName}` : ""}`}
         sub="Your Sunday reporting at a glance"
       />
       <div
+        className="dcc-page"
         style={{
           padding: 28,
           display: "flex",
@@ -162,7 +163,7 @@ export default function MyCellPage() {
             alignItems: "stretch",
           }}
         >
-          <Card style={{ padding: 20 }}>
+          <Card style={{ padding: 20, minWidth: 0 }}>
             <div style={{ fontSize: 13, fontWeight: 600 }}>
               Attendance, last reported 8 Sundays
             </div>
@@ -566,13 +567,14 @@ function AttendanceStrip({ reports }: { reports: SundayReport[] }) {
   const max = Math.max(1, ...chronological.map((r) => r.members_present ?? 0));
 
   return (
-    <div style={{ marginTop: 16 }}>
+    <div style={{ marginTop: 16, overflowX: "auto", paddingBottom: 4 }}>
       <div
         style={{
           display: "flex",
           alignItems: "flex-end",
           gap: 5,
           height: 110,
+          minWidth: chronological.length * 52,
         }}
       >
         {chronological.map((r, i) => {

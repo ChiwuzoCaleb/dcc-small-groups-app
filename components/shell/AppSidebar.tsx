@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import { useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
@@ -27,6 +28,7 @@ import {
   SidebarMenuBadge,
   SidebarMenuButton,
   SidebarMenuItem,
+  useSidebar,
 } from "@/components/ui/sidebar";
 import { useAuth } from "@/hooks/useAuth";
 import { notify } from "@/lib/toast";
@@ -74,7 +76,13 @@ export function AppSidebar({
   const pathname = usePathname();
   const router = useRouter();
   const { logout } = useAuth();
+  const { setOpenMobile } = useSidebar();
   const items = NAV[area] ?? NAV.cell;
+
+  // Close the off-canvas drawer after any navigation.
+  useEffect(() => {
+    setOpenMobile(false);
+  }, [pathname, setOpenMobile]);
 
   async function signOut() {
     try {

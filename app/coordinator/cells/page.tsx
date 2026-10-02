@@ -66,7 +66,7 @@ export default function CellsPage() {
         right={<ServiceDatePicker value={serviceDate} onChange={setServiceDate} />}
       />
 
-      <div style={{ padding: 28, display: "flex", flexDirection: "column", gap: 18, maxWidth: 1000 }}>
+      <div className="dcc-page" style={{ padding: 28, display: "flex", flexDirection: "column", gap: 18, maxWidth: 1000 }}>
         {dash.isError ? (
           <ErrorCard message={`Could not load cell counts: ${dash.error.message}`} />
         ) : (

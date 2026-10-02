@@ -143,6 +143,21 @@ function childUnits(node: DashboardOrgNode, level: UnitLevel): DashboardOrgNode[
   }).filter((unit): unit is DashboardOrgNode => unit !== null);
 }
 
+function countCells(node: DashboardOrgNode, level: UnitLevel): number | null {
+  const next = NEXT_LEVEL[level];
+  if (!next) return null;
+  const children = childUnits(node, next);
+  if (next === "cell") return Array.isArray(node.cells) ? children.length : null;
+  if (children.length === 0) return null;
+  let total = 0;
+  for (const child of children) {
+    const count = optionalNumber(child.total_cells) ?? countCells(child, next);
+    if (count === null) return null;
+    total += count;
+  }
+  return total;
+}
+
 function rowFromUnit(
   unit: DashboardOrgNode,
   level: UnitLevel,
@@ -151,6 +166,7 @@ function rowFromUnit(
   chronicCellIds: ReadonlySet<string>,
   fromMissingList: boolean,
   unitDetails?: Partial<Record<"district" | "zone" | "area" | "section", ReadonlyMap<string, { name: string | null; code: string | null }>>>,
+  index = 0,
 ): DashboardRow {
   const id = String(unit.id ?? unit.uuid ?? unit.code ?? "");
   const hierarchyDetail = level === "district" || level === "zone" || level === "area" || level === "section"
@@ -175,11 +191,13 @@ function rowFromUnit(
     ? unit.name
     : typeof unit.label === "string"
       ? unit.label
+      : typeof unit[`${level}_name`] === "string"
+        ? String(unit[`${level}_name`])
       : hierarchyDetail?.name
         ? hierarchyDetail.name
       : isCell && id && missingCellNames.has(id)
         ? missingCellNames.get(id)!
-        : code ?? `${UNIT_LABELS[level].singular} ${id}`;
+        : code ?? `${UNIT_LABELS[level].singular} ${index + 1}`;
   const nextLevel = NEXT_LEVEL[level];
   const descendants = nextLevel ? childUnits(unit, nextLevel) : [];
 
@@ -195,7 +213,7 @@ function rowFromUnit(
     chronic_cells_count: optionalNumber(unit.chronic_cells_count ?? unit.chronic_count),
     leaderPhone: optionalText(unit.leader_phone ?? unit.phone_number ?? leaderObject?.phone_number),
     leaderEmail: optionalText(unit.leader_email ?? unit.email ?? leaderObject?.email),
-    cellCount: optionalNumber(unit.total_cells),
+    cellCount: optionalNumber(unit.total_cells) ?? (isCell ? null : countCells(unit, level)),
     isChronic: isCell && chronicCellIds.has(id),
     isCell,
     isMissing,
@@ -233,7 +251,7 @@ function rowsForUnit(
   if (!nextLevel) return [];
   const units = childUnits(node, nextLevel);
   const hasFullCellList = nextLevel === "cell" && Array.isArray(node.cells);
-  return units.map((unit) => rowFromUnit(unit, nextLevel, missingCellIds, missingCellNames, chronicCellIds, nextLevel === "cell" && !hasFullCellList, unitDetails));
+  return units.map((unit, index) => rowFromUnit(unit, nextLevel, missingCellIds, missingCellNames, chronicCellIds, nextLevel === "cell" && !hasFullCellList, unitDetails, index));
 }
 
 export default function CoordinatorPage() {
@@ -397,7 +415,7 @@ export default function CoordinatorPage() {
         }
       />
 
-      <div style={{ padding: 28, display: "flex", flexDirection: "column", gap: 20, maxWidth: 1200 }}>
+      <div className="dcc-page" style={{ padding: 28, display: "flex", flexDirection: "column", gap: 20, maxWidth: 1200 }}>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 16 }}>
             <ComplianceMetricCard value={compliance} trend={trend.data ?? []} loading={trend.isLoading} />
           <MetricCard label="Not submitted" value={displayCount(missing)} detail="Cells missing a report for this Sunday." tone="red" />
@@ -472,7 +490,7 @@ export default function CoordinatorPage() {
               {dashboard.isLoading || (currentLevel === "section" && cellPage.isLoading) ? (
                 <TableRow><TableCell colSpan={currentLevel === "section" ? 4 : 6} style={{ padding: 30, textAlign: "center", color: colors.faint }}>Loading dashboard…</TableCell></TableRow>
               ) : dashboard.isError || (currentLevel === "section" && cellPage.isError) ? (
-                <TableRow><TableCell colSpan={currentLevel === "section" ? 4 : 6} style={{ padding: 30, textAlign: "center", color: colors.red }}>Could not load dashboard data.</TableCell></TableRow>
+                <TableRow><TableCell colSpan={currentLevel === "section" ? 4 : 6} style={{ padding: 30, textAlign: "center", color: colors.red }}>Could not load dashboard data{(dashboard.error ?? cellPage.error)?.message ? `: ${(dashboard.error ?? cellPage.error)?.message}` : "."}</TableCell></TableRow>
               ) : !scopeNode ? (
                 <TableRow><TableCell colSpan={currentLevel === "section" ? 4 : 6} style={{ padding: 30, textAlign: "center", color: colors.faint }}>Your assigned {UNIT_LABELS[scopeLevel].singular.toLowerCase()} was not included in the API response.</TableCell></TableRow>
               ) : filteredRows.length === 0 ? (
