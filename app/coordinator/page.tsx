@@ -31,7 +31,7 @@ import type { RoleName } from "@/lib/auth/roles";
 import type { OrgUnitType } from "@/lib/api/types";
 import type { SundayReport } from "@/lib/api/types";
 
-type FilterKey = "ALL" | "NOT_SUBMITTED" | "PENDING_APPROVAL" | "CHRONIC";
+type FilterKey = "ALL" | "SUBMITTED" | "NOT_SUBMITTED" | "PENDING_APPROVAL" | "CHRONIC";
 
 type DashboardOrgNode = Record<string, unknown>;
 
@@ -42,6 +42,7 @@ type DashboardRow = {
   leader?: string | null;
   approved: number | null;
   pending_approval: number | null;
+  approvalStatus?: string | null;
   missing_cells_count: number | null;
   compliance_percentage: number | null;
   chronic_cells_count: number | null;
@@ -57,7 +58,8 @@ type DashboardRow = {
 
 const FILTERS: { key: FilterKey; label: string }[] = [
   { key: "ALL", label: "All" },
-  { key: "NOT_SUBMITTED", label: "Not submitted" },
+  { key: "SUBMITTED", label: "Submitted" },
+  { key: "NOT_SUBMITTED", label: "Missing" },
   { key: "PENDING_APPROVAL", label: "Pending approval" },
   { key: "CHRONIC", label: "Chronic" },
 ];
@@ -128,7 +130,7 @@ function findAssignedUnit(data: unknown, level: UnitLevel, id: string): Dashboar
 
 function childUnits(node: DashboardOrgNode, level: UnitLevel): DashboardOrgNode[] {
   if (level === "cell") {
-    const cells = Array.isArray(node.cells) ? node.cells : node.missing_cells;
+    const cells = Array.isArray(node.all_cells) ? node.all_cells : Array.isArray(node.cells) ? node.cells : node.missing_cells;
     if (!Array.isArray(cells)) return [];
     return cells.map((cell) => {
       const record = asRecord(cell);
@@ -149,7 +151,7 @@ function countCells(node: DashboardOrgNode, level: UnitLevel): number | null {
   const next = NEXT_LEVEL[level];
   if (!next) return null;
   const children = childUnits(node, next);
-  if (next === "cell") return Array.isArray(node.cells) ? children.length : null;
+  if (next === "cell") return Array.isArray(node.all_cells) || Array.isArray(node.cells) ? children.length : null;
   if (children.length === 0) return null;
   let total = 0;
   for (const child of children) {
@@ -179,7 +181,11 @@ function rowFromUnit(
     : unit.code;
   const code = optionalText(unitCode) ?? hierarchyDetail?.code ?? null;
   const isCell = level === "cell";
-  const isMissing = fromMissingList || unit.is_missing === true || unit.status === "NOT_SUBMITTED" || missingCellIds.has(id);
+  const hasSubmitted = typeof unit.has_submitted === "boolean" ? unit.has_submitted : null;
+  const approvalStatus = optionalText(unit.approval_status);
+  const isMissing = hasSubmitted !== null
+    ? !hasSubmitted
+    : fromMissingList || unit.is_missing === true || unit.status === "NOT_SUBMITTED" || missingCellIds.has(id);
   const leaderName = typeof unit.leader_name === "string" ? unit.leader_name.trim() : "";
   const leader = leaderName
     ? leaderName
@@ -209,7 +215,8 @@ function rowFromUnit(
     code,
     leader,
     approved: optionalNumber(unit.approved ?? unit.approved_count),
-    pending_approval: optionalNumber(unit.pending_approval ?? unit.pending),
+    pending_approval: optionalNumber(unit.pending_approval ?? unit.pending) ?? (isCell && approvalStatus ? (approvalStatus === "PENDING" ? 1 : 0) : null),
+    approvalStatus,
     missing_cells_count: optionalNumber(unit.missing_cells_count) ?? (isCell && isMissing ? 1 : null),
     compliance_percentage: optionalNumber(unit.compliance_percentage),
     chronic_cells_count: optionalNumber(unit.chronic_cells_count ?? unit.chronic_count),
@@ -252,7 +259,7 @@ function rowsForUnit(
   const nextLevel = NEXT_LEVEL[level];
   if (!nextLevel) return [];
   const units = childUnits(node, nextLevel);
-  const hasFullCellList = nextLevel === "cell" && Array.isArray(node.cells);
+  const hasFullCellList = nextLevel === "cell" && (Array.isArray(node.all_cells) || Array.isArray(node.cells));
   return units.map((unit, index) => rowFromUnit(unit, nextLevel, missingCellIds, missingCellNames, chronicCellIds, nextLevel === "cell" && !hasFullCellList, unitDetails, index));
 }
 
@@ -397,9 +404,11 @@ export default function CoordinatorPage() {
     };
     return rowFromUnit(unit, "cell", new Set([id]), new Map(), filter === "CHRONIC" ? new Set([id]) : new Set(), true);
   }), [cellContacts, cellPage.data?.rows, filter]);
-  const baseRows = currentLevel === "section" ? cellRows : rows;
+  const useAllCells = currentLevel === "section" && Array.isArray(currentNode?.all_cells);
+  const baseRows = currentLevel === "section" ? (useAllCells ? rows : cellRows) : rows;
   const filteredRows = useMemo(() => baseRows.filter((row) => {
     if (filter === "ALL") return true;
+    if (filter === "SUBMITTED") return row.isCell ? !row.isMissing : (row.cellCount ?? 0) > (row.missing_cells_count ?? 0);
     if (filter === "NOT_SUBMITTED") return row.isMissing || (row.missing_cells_count ?? 0) > 0;
     if (filter === "PENDING_APPROVAL") return (row.pending_approval ?? 0) > 0;
     if (filter === "CHRONIC") return row.isChronic || (row.chronic_cells_count ?? 0) > 0;
@@ -424,8 +433,11 @@ export default function CoordinatorPage() {
       : unitTitle;
   const totalCells = optionalNumber(scopeSummary?.total_cells ?? scopeNode?.total_cells);
   const displayCount = (value: number | null | undefined) => value === null || value === undefined ? "—" : String(value);
-  const totalRows = currentLevel === "section" && tableLevel === "cell" ? cellPage.data?.count ?? 0 : filteredRows.length;
+  const totalRows = currentLevel === "section" && tableLevel === "cell" && !useAllCells ? cellPage.data?.count ?? 0 : filteredRows.length;
   const totalPages = Math.max(1, Math.ceil(totalRows / 10));
+  const visibleRows = useAllCells ? filteredRows.slice((page - 1) * 10, page * 10) : filteredRows;
+  const cellPageLoading = currentLevel === "section" && !useAllCells && cellPage.isLoading;
+  const cellPageError = currentLevel === "section" && !useAllCells && cellPage.isError;
 
   function drillInto(row: DashboardRow) {
     if (row.hasChildren && row.id) {
@@ -551,15 +563,15 @@ export default function CoordinatorPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {dashboard.isLoading || (currentLevel === "section" && cellPage.isLoading) ? (
+              {dashboard.isLoading || cellPageLoading ? (
                 <TableRow><TableCell colSpan={currentLevel === "section" ? 4 : 6} style={{ padding: 30, textAlign: "center", color: colors.faint }}>Loading dashboard…</TableCell></TableRow>
-              ) : dashboard.isError || (currentLevel === "section" && cellPage.isError) ? (
+              ) : dashboard.isError || cellPageError ? (
                 <TableRow><TableCell colSpan={currentLevel === "section" ? 4 : 6} style={{ padding: 30, textAlign: "center", color: colors.red }}>Could not load dashboard data{(dashboard.error ?? cellPage.error)?.message ? `: ${(dashboard.error ?? cellPage.error)?.message}` : "."}</TableCell></TableRow>
               ) : !scopeNode ? (
                 <TableRow><TableCell colSpan={currentLevel === "section" ? 4 : 6} style={{ padding: 30, textAlign: "center", color: colors.faint }}>Your assigned {UNIT_LABELS[scopeLevel].singular.toLowerCase()} was not included in the API response.</TableCell></TableRow>
               ) : filteredRows.length === 0 ? (
                 <TableRow><TableCell colSpan={currentLevel === "section" ? 4 : 6} style={{ padding: 30, textAlign: "center", color: colors.faint }}>No {tableLabels.plural.toLowerCase()} were returned for this unit.</TableCell></TableRow>
-              ) : filteredRows.map((row) => {
+              ) : visibleRows.map((row) => {
                 const pct = row.compliance_percentage;
                 const isCellView = currentLevel === "section" && tableLevel === "cell";
                 return (
@@ -587,7 +599,7 @@ export default function CoordinatorPage() {
                         </TableCell>
                         <TableCell>
                           <span style={{ fontSize: 11, fontWeight: 600, padding: "4px 8px", borderRadius: 6, background: row.isMissing ? colors.amberSoft : colors.greenSoft, color: row.isMissing ? colors.amber : colors.green, whiteSpace: "nowrap" }}>
-                            {row.isMissing ? "Not submitted" : selectedCell?.id === row.id && selectedReport ? selectedReport.approval_status.replaceAll("_", " ") : "Submitted"}
+                            {row.isMissing ? "Not submitted" : selectedCell?.id === row.id && selectedReport ? selectedReport.approval_status.replaceAll("_", " ") : row.approvalStatus ? row.approvalStatus.replaceAll("_", " ") : "Submitted"}
                           </span>
                         </TableCell>
                       </>
@@ -618,8 +630,8 @@ export default function CoordinatorPage() {
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, borderTop: `1px solid ${colors.border}`, padding: "12px 20px" }}>
               <span style={{ color: colors.muted, fontSize: 12 }}>Page {page} of {totalPages} · {totalRows} cells</span>
               <div style={{ display: "flex", gap: 8 }}>
-                <Button variant="secondary" disabled={page <= 1 || cellPage.isFetching} onClick={() => setPage((current) => Math.max(1, current - 1))} padding="6px 10px" fontSize={12}>Previous</Button>
-                <Button variant="secondary" disabled={page >= totalPages || cellPage.isFetching} onClick={() => setPage((current) => Math.min(totalPages, current + 1))} padding="6px 10px" fontSize={12}>Next</Button>
+                <Button variant="secondary" disabled={page <= 1 || (!useAllCells && cellPage.isFetching)} onClick={() => setPage((current) => Math.max(1, current - 1))} padding="6px 10px" fontSize={12}>Previous</Button>
+                <Button variant="secondary" disabled={page >= totalPages || (!useAllCells && cellPage.isFetching)} onClick={() => setPage((current) => Math.min(totalPages, current + 1))} padding="6px 10px" fontSize={12}>Next</Button>
               </div>
             </div>
           )}
