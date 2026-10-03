@@ -185,9 +185,24 @@ export function obtainTokens(email: string, password: string): Promise<TokenPair
  * actually requires.
  */
 export function refreshTokens(refresh: string, access?: string | null): Promise<TokenRefreshResponse> {
-  return httpRequest<TokenRefreshResponse>(upstreamUrl(API_ROUTES.tokenRefresh), {
+  // A dashboard load fires many parallel requests. When the refresh token
+  // rotates (and the old one is blacklisted), only the first refresh would
+  // succeed and the rest would sign the user out. Share one in-flight call per
+  // refresh token and keep its result briefly for late arrivals.
+  const existing = refreshInFlight.get(refresh);
+  if (existing) return existing;
+
+  const pending = httpRequest<TokenRefreshResponse>(upstreamUrl(API_ROUTES.tokenRefresh), {
     method: "POST",
     body: { refresh },
     headers: access ? { Authorization: `Bearer ${access}` } : {},
   });
+     refreshInFlight.set(refresh, pending);
+     pending.then(
+       () => setTimeout(() => refreshInFlight.delete(refresh), 10_000),
+       () => refreshInFlight.delete(refresh),
+     );
+     return pending;
 }
+
+const refreshInFlight = new Map<string, Promise<TokenRefreshResponse>>();

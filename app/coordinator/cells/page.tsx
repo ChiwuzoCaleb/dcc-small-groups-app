@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
 import { colors } from "@/lib/tokens";
-import { useNonSubmitters, useOrgDashboard } from "@/hooks/api/dashboard";
+import { useChronicCells, useNonSubmitters, useOrgDashboard } from "@/hooks/api/dashboard";
 import type { NonSubmitterRow } from "@/lib/api/types";
 import {
   ErrorCard,
@@ -38,13 +38,12 @@ export default function CellsPage() {
   const [query, setQuery] = useState("");
 
   const dash = useOrgDashboard(serviceDate);
-  const nonSubmitters = useNonSubmitters({ serviceDate, chronic: chronicOnly });
-  // A separate always-chronic query for the stat tile: `chronic` isn't a
-  // documented per-row field on non-submitters/, so when the table itself
-  // isn't chronic-filtered there's no reliable way to count chronic rows out
-  // of the full list.
-  const chronicCount = useNonSubmitters({ serviceDate, chronic: true });
-
+  // Chronic cells are always loaded: they feed the stat tile and, when the
+  // Chronic filter is on, the table itself — so that filter costs no request.
+  const chronicCells = useChronicCells(serviceDate);
+  const allMissing = useNonSubmitters({ serviceDate });
+  const nonSubmitters = chronicOnly ? chronicCells : allMissing;
+  const chronicCount = chronicCells;
   const rows = useMemo(() => {
     const q = query.trim().toLowerCase();
     return (nonSubmitters.data ?? []).filter((r) => {

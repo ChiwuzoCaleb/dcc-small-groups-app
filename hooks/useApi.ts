@@ -57,6 +57,7 @@ export const queryKeys = {
     all: ["reports"] as const,
     list: (params?: QueryParams) => ["reports", "list", params ?? {}] as const,
     mine: ["reports", "mine"] as const,
+    byDate: (date: string) => ["reports", "mine", "date", date] as const,
     /** One server page of `reports/mine/`. Shares the `mine` prefix so invalidating `reports.all` refreshes it too. */
     minePage: (page: number, date?: string) => ["reports", "mine", "page", page, date ?? null] as const,
     detail: (id: string) => ["reports", "detail", id] as const,

@@ -12,7 +12,7 @@ import type {
 } from "@/lib/api/types";
 import { api } from "@/lib/api/client";
 import { asArray, asObject } from "@/lib/api/normalize";
-import { queryKeys, useApiQuery } from "../useApi";
+import { queryKeys, useApiAllPagesQuery, useApiQuery } from "../useApi";
 
 /**
  * Compliance totals for the caller's scope as a single {@link ComplianceSummary}.
@@ -52,89 +52,27 @@ export function useDashboardApprovals() {
   );
 }
 
-/** Total pending approvals, preserving DRF's paginated `count` when present. */
-export function useDashboardApprovalCount() {
-  return useApiQuery<unknown, number | null>(
-    queryKeys.dashboard.approvals,
-    API_ROUTES.orgDashboardApprovals,
-    {
-      select: (data) => {
-        if (Array.isArray(data)) return data.length;
-        if (data && typeof data === "object") {
-          const page = data as { count?: unknown; results?: unknown };
-          if (typeof page.count === "number") return page.count;
-          if (Array.isArray(page.results)) return page.results.length;
-        }
-        return null;
-      },
-      refetchInterval: 60_000,
-    },
+/**
+ * Every cell in scope that has not submitted for the selected Sunday (all pages,
+ * fetched in parallel). For chronic cells use {@link useChronicCells}.
+ */
+export function useNonSubmitters(opts: { serviceDate?: string } = {}) {
+  return useApiAllPagesQuery<NonSubmitterRow>(
+    queryKeys.dashboard.nonSubmitters({ serviceDate: opts.serviceDate ?? null, all: true }),
+    API_ROUTES.orgDashboardNonSubmitters,
+    { params: opts.serviceDate ? { service_date: opts.serviceDate } : {} },
   );
 }
-
-/** Cells in scope that have not submitted for the selected Sunday. `chronic` → missing 3+ consecutive Sundays. */
-export function useNonSubmitters(opts: { serviceDate?: string; chronic?: boolean } = {}) {
-  const params = {
-    ...(opts.serviceDate ? { service_date: opts.serviceDate } : {}),
-    ...(opts.chronic ? { chronic: true } : {}),
-  };
-  return useApiQuery<unknown, NonSubmitterRow[]>(
-    queryKeys.dashboard.nonSubmitters(params),
+/**
+ * Every cell that missed 3+ consecutive Sundays ending on `serviceDate`. One
+ * request set serves both the list (to flag rows) and the count (`length`),
+ * replacing separate list/count/page queries over the same endpoint.
+ */
+export function useChronicCells(serviceDate?: string) {
+  return useApiAllPagesQuery<NonSubmitterRow>(
+    queryKeys.dashboard.nonSubmitters({ serviceDate: serviceDate ?? null, chronic: true, all: true }),
     API_ROUTES.orgDashboardNonSubmitters,
-    { params, select: (d) => asArray<NonSubmitterRow>(d) },
-  );
-}
-
-/** One backend-paginated page of non-submitting cells; the API default page size is 10. */
-export function useNonSubmitterPage(opts: { serviceDate?: string; chronic?: boolean; page: number }) {
-  const params = {
-    ...(opts.serviceDate ? { service_date: opts.serviceDate } : {}),
-    ...(opts.chronic ? { chronic: true } : {}),
-    page: opts.page,
-  };
-  return useApiQuery<unknown, { rows: NonSubmitterRow[]; count: number }>(
-    queryKeys.dashboard.nonSubmitters(params),
-    API_ROUTES.orgDashboardNonSubmitters,
-    {
-      params,
-      select: (data) => {
-        if (Array.isArray(data)) return { rows: data as NonSubmitterRow[], count: data.length };
-        if (data && typeof data === "object") {
-          const page = data as { count?: unknown; results?: unknown };
-          if (Array.isArray(page.results)) {
-            return {
-              rows: page.results as NonSubmitterRow[],
-              count: typeof page.count === "number" ? page.count : page.results.length,
-            };
-          }
-        }
-        return { rows: [], count: 0 };
-      },
-    },
-  );
-}
-
-/** Total non-submitters or chronic cells, preserving DRF's paginated count. */
-export function useNonSubmitterCount(opts: { serviceDate?: string; chronic?: boolean } = {}) {
-  const params = {
-    ...(opts.serviceDate ? { service_date: opts.serviceDate } : {}),
-    ...(opts.chronic ? { chronic: true } : {}),
-  };
-  return useApiQuery<unknown, number | null>(
-    queryKeys.dashboard.nonSubmitters(params),
-    API_ROUTES.orgDashboardNonSubmitters,
-    {
-      params,
-      select: (data) => {
-        if (Array.isArray(data)) return data.length;
-        if (data && typeof data === "object") {
-          const page = data as { count?: unknown; results?: unknown };
-          if (typeof page.count === "number") return page.count;
-          if (Array.isArray(page.results)) return page.results.length;
-        }
-        return null;
-      },
-    },
+    { params: { ...(serviceDate ? { service_date: serviceDate } : {}), chronic: true } },
   );
 }
 

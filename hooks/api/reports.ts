@@ -4,7 +4,7 @@
 
 import { API_ROUTES } from "@/lib/api/config";
 import { api } from "@/lib/api/client";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient, type QueryClient, type QueryKey } from "@tanstack/react-query";
 import type {
   CreateReportInput,
   Paginated,
@@ -57,12 +57,15 @@ export function useReports(params?: { page?: number } & QueryParams) {
   );
 }
 
-/** All reports visible to the signed-in leader, loaded only when a cell detail is opened. */
-export function useScopedReportsForCell(enabled: boolean) {
+/**
+ * Reports in the caller's role scope for one Sunday (`reports/mine/?date=`).
+ * Bounded to a single week, unlike the unscoped `reports/` list it replaces.
+ */
+export function useReportsForDate(date: string, enabled: boolean) {
   return useApiAllPagesQuery<SundayReport>(
-    queryKeys.reports.all,
-    API_ROUTES.reports,
-    { query: { enabled } },
+    queryKeys.reports.byDate(date),
+    API_ROUTES.myReports,
+    { params: { date }, query: { enabled, staleTime: 30_000 } },
   );
 }
 
@@ -140,16 +143,39 @@ export function useUpdateReport(id: string) {
 }
 
 export function useApproveReport() {
+  const queryClient = useQueryClient();
   return useApiMutation<SundayReport, { id: string } & ReportDecisionInput>(
     ({ id, ...body }) => ({ path: API_ROUTES.reportApprove(id), method: "POST", body }),
-    { invalidateKeys: [queryKeys.reports.all, queryKeys.approvals.all, queryKeys.dashboard.all] },
+    { ...decisionOptions(queryClient) },
   );
 }
 
 /** Send a report back for correction, with an optional explanatory comment. */
 export function useRejectReport() {
+  const queryClient = useQueryClient();
   return useApiMutation<SundayReport, { id: string } & ReportDecisionInput>(
     ({ id, ...body }) => ({ path: API_ROUTES.reportReject(id), method: "POST", body }),
-    { invalidateKeys: [queryKeys.reports.all, queryKeys.approvals.all, queryKeys.dashboard.all] },
+    { ...decisionOptions(queryClient) },
   );
+}
+
+/**
+ * After an approve/reject the report leaves the queue immediately (no refetch
+ * round trip); everything it can affect is refreshed in the background. Only
+ * the per-Sunday and per-report caches are touched, not a leader's full history.
+ */
+function decisionOptions(queryClient: QueryClient) {
+  return {
+    invalidateKeys: [
+      queryKeys.approvals.all,
+      queryKeys.dashboard.all,
+      ["reports", "detail"] as const,
+      ["reports", "mine", "date"] as const,
+    ] as QueryKey[],
+    onSuccess: (_data: SundayReport, variables: { id: string }) => {
+      queryClient.setQueryData<SundayReport[]>(queryKeys.approvals.queue, (queue) =>
+        queue?.filter((report) => report.id !== variables.id),
+      );
+    },
+  };
 }

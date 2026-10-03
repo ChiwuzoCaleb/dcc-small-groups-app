@@ -1,19 +1,12 @@
-import { Suspense } from "react";
-import { AuthShell } from "@/components/auth/AuthShell";
-import { ActivateWizard } from "@/components/auth/ActivateWizard";
+import { redirect } from "next/navigation";
 
-export default function ActivatePage() {
-  return (
-    <AuthShell
-      subtitle="Alimosho Region"
-      roleLabel="Activation"
-      headline="Your account already exists — this just turns it on."
-      blurb="Accounts are created by your coordinator's hierarchy upload. Choose a password from your invitation link and you're straight into your dashboard."
-      rightPane={
-        <Suspense fallback={null}>
-          <ActivateWizard />
-        </Suspense>
-      }
-    />
-  );
+/** Legacy path — invitation links now open `/activate-account`. */
+export default async function ActivateRedirect({
+  searchParams,
+}: {
+  searchParams: Promise<{ token?: string | string[] }>;
+}) {
+  const { token } = await searchParams;
+  const value = Array.isArray(token) ? token[0] : token;
+  redirect(value ? `/activate-account?token=${encodeURIComponent(value)}` : "/activate-account");
 }

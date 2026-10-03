@@ -16,11 +16,16 @@ export function ActivateWizard() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  const [done, setDone] = useState(false);
 
   async function activate() {
     setError(null);
     if (!token) {
       setError("This activation link is missing its token. Use the link from your invitation email.");
+      return;
+    }
+    if (password.length < 8) {
+      setError("Password must be at least 8 characters.");
       return;
     }
     if (password !== confirmPassword) {
@@ -34,7 +39,8 @@ export function ActivateWizard() {
         body: { token, password, password_confirmation: confirmPassword },
         fetchOptions: { credentials: "same-origin" },
       });
-      router.replace("/sign-in?activated=1");
+      setDone(true);
+      setTimeout(() => router.replace("/sign-in"), 2500);
     } catch (err) {
       if (err instanceof ApiError) {
         setError(
@@ -48,6 +54,26 @@ export function ActivateWizard() {
       }
       setPending(false);
     }
+  }
+
+  if (done) {
+    return (
+      <div style={{ width: "100%", maxWidth: 400, margin: "0 auto", textAlign: "center" }} role="status">
+        <div
+          aria-hidden="true"
+          style={{ width: 52, height: 52, margin: "0 auto 18px", borderRadius: "50%", background: colors.greenSoft, color: colors.green, display: "grid", placeItems: "center", fontSize: 26, fontWeight: 700 }}
+        >
+          ✓
+        </div>
+        <div style={{ fontSize: 26, fontWeight: 600, letterSpacing: "-0.035em", marginBottom: 7 }}>Account activated</div>
+        <div style={{ fontSize: 13.5, color: colors.muted, lineHeight: 1.55, marginBottom: 28 }}>
+          Your password is set. Taking you to sign in…
+        </div>
+        <Button variant="primary" fullWidth style={{ padding: 15, fontSize: 14.5 }} onClick={() => router.replace("/sign-in")}>
+          Continue to sign in
+        </Button>
+      </div>
+    );
   }
 
   return (
@@ -84,11 +110,11 @@ export function ActivateWizard() {
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
           <label style={{ display: "block" }}>
             <span style={{ display: "block", fontSize: 11.5, fontWeight: 600, color: colors.muted, marginBottom: 7 }}>New password</span>
-            <TextInput value={password} onChange={setPassword} type="password" placeholder="••••••••" />
+            <TextInput value={password} onChange={setPassword} type="password" placeholder="At least 8 characters" />
           </label>
           <label style={{ display: "block" }}>
             <span style={{ display: "block", fontSize: 11.5, fontWeight: 600, color: colors.muted, marginBottom: 7 }}>Confirm password</span>
-            <TextInput value={confirmPassword} onChange={setConfirmPassword} type="password" placeholder="••••••••" />
+            <TextInput value={confirmPassword} onChange={setConfirmPassword} type="password" placeholder="Re-enter your password" />
           </label>
         </div>
 

@@ -4,7 +4,7 @@ import { useState } from "react";
 import { PageHeader, Button } from "@/components/ui";
 import { colors, mono } from "@/lib/tokens";
 import { lastClosedSundays } from "@/lib/dates";
-import { useDashboardExport, useNonSubmitters } from "@/hooks/api/dashboard";
+import { useChronicCells, useDashboardExport } from "@/hooks/api/dashboard";
 import type { NonSubmitterRow } from "@/lib/api/types";
 import { notify } from "@/lib/toast";
 import {
@@ -200,7 +200,7 @@ export default function ExportsPage() {
  */
 function ChronicExportCard() {
   const [serviceDate, setServiceDate] = useState(defaultServiceDate);
-  const nonSubmitters = useNonSubmitters({ serviceDate, chronic: true });
+  const nonSubmitters = useChronicCells(serviceDate);
   const rows = nonSubmitters.data ?? [];
 
   function run() {

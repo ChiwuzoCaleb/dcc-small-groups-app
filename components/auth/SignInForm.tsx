@@ -53,7 +53,7 @@ export function SignInForm() {
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
           <label style={{ display: "block" }}>
             <span style={{ display: "block", fontSize: 11.5, fontWeight: 600, color: colors.muted, marginBottom: 7 }}>
-              Email or cell code
+              Email
             </span>
             <TextInput value={identifier} onChange={setIdentifier} placeholder="name@email.com" type="text" />
           </label>
@@ -91,7 +91,7 @@ export function SignInForm() {
       </div>
       <div style={{ marginTop: 22, fontSize: 12, color: colors.faint2, lineHeight: 1.55, textAlign: "center" }}>
         First time here?{" "}
-        <a href="/activate" style={{ fontWeight: 600 }}>
+        <a href="/activate-account" style={{ fontWeight: 600 }}>
           Activate your account
         </a>
       </div>
