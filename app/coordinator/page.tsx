@@ -466,7 +466,7 @@ export default function CoordinatorPage() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead style={{ width: currentLevel === "section" ? "25%" : "40%" }}>{tableLabels.singular}</TableHead>
+                <TableHead style={{ width: currentLevel === "section" ? "25%" : "22%" }}>{tableLabels.singular}</TableHead>
                 {currentLevel === "section" && tableLevel === "cell" ? (
                   <>
                     <TableHead style={{ width: "18%" }}>Leader</TableHead>
@@ -476,10 +476,12 @@ export default function CoordinatorPage() {
                   </>
                 ) : (
                   <>
-                    <TableHead style={{ width: "18%" }}>Leader</TableHead>
-                    <TableHead style={{ width: "10%" }}>Appr.</TableHead>
-                    <TableHead style={{ width: "10%" }}>Pend.</TableHead>
-                    <TableHead style={{ width: "10%" }}>Missing</TableHead>
+                    <TableHead style={{ width: "14%" }}>Leader</TableHead>
+                    <TableHead style={{ width: "12%" }}>Leader phone</TableHead>
+                    <TableHead style={{ width: "18%" }}>Leader email</TableHead>
+                    <TableHead style={{ width: "7%" }}>Appr.</TableHead>
+                    <TableHead style={{ width: "7%" }}>Pend.</TableHead>
+                    <TableHead style={{ width: "8%" }}>Missing</TableHead>
                     <TableHead style={{ width: "12%" }}>{tableLevel === "cell" ? "Status" : "Compliance"}</TableHead>
                   </>
                 )}
@@ -487,13 +489,13 @@ export default function CoordinatorPage() {
             </TableHeader>
             <TableBody>
               {dashboard.isLoading ? (
-                <TableRow><TableCell colSpan={currentLevel === "section" ? 5 : 6} style={{ padding: 30, textAlign: "center", color: colors.faint }}>Loading dashboard…</TableCell></TableRow>
+                <TableRow><TableCell colSpan={currentLevel === "section" ? 5 : 8} style={{ padding: 30, textAlign: "center", color: colors.faint }}>Loading dashboard…</TableCell></TableRow>
               ) : dashboard.isError ? (
-                <TableRow><TableCell colSpan={currentLevel === "section" ? 5 : 6} style={{ padding: 30, textAlign: "center", color: colors.red }}>Could not load dashboard data{dashboard.error?.message ? `: ${dashboard.error.message}` : "."}</TableCell></TableRow>
+                <TableRow><TableCell colSpan={currentLevel === "section" ? 5 : 8} style={{ padding: 30, textAlign: "center", color: colors.red }}>Could not load dashboard data{dashboard.error?.message ? `: ${dashboard.error.message}` : "."}</TableCell></TableRow>
               ) : !scopeNode ? (
-                <TableRow><TableCell colSpan={currentLevel === "section" ? 5 : 6} style={{ padding: 30, textAlign: "center", color: colors.faint }}>Your assigned {UNIT_LABELS[scopeLevel].singular.toLowerCase()} was not included in the API response.</TableCell></TableRow>
+                <TableRow><TableCell colSpan={currentLevel === "section" ? 5 : 8} style={{ padding: 30, textAlign: "center", color: colors.faint }}>Your assigned {UNIT_LABELS[scopeLevel].singular.toLowerCase()} was not included in the API response.</TableCell></TableRow>
               ) : filteredRows.length === 0 ? (
-                <TableRow><TableCell colSpan={currentLevel === "section" ? 5 : 6} style={{ padding: 30, textAlign: "center", color: colors.faint }}>No {tableLabels.plural.toLowerCase()} were returned for this unit.</TableCell></TableRow>
+                <TableRow><TableCell colSpan={currentLevel === "section" ? 5 : 8} style={{ padding: 30, textAlign: "center", color: colors.faint }}>No {tableLabels.plural.toLowerCase()} were returned for this unit.</TableCell></TableRow>
               ) : visibleRows.map((row) => {
                 const pct = row.compliance_percentage;
                 const complianceColor = (row.pending_approval ?? 0) > 0 ? colors.amber : pct !== null && pct >= 90 ? colors.green : pct !== null && pct >= 70 ? colors.amber : colors.red;
@@ -532,6 +534,12 @@ export default function CoordinatorPage() {
                     ) : (
                       <>
                         <TableCell style={{ color: colors.muted, fontWeight: 500 }}>{row.leader ?? "-"}</TableCell>
+                        <TableCell style={{ color: colors.muted, fontSize: 12.5 }}>
+                          {row.leaderPhone ? <a href={`tel:${row.leaderPhone}`} onClick={(event) => event.stopPropagation()}>{row.leaderPhone}</a> : "-"}
+                        </TableCell>
+                        <TableCell style={{ color: colors.muted, fontSize: 12.5, wordBreak: "break-all" }}>
+                          {row.leaderEmail ? <a href={`mailto:${row.leaderEmail}`} onClick={(event) => event.stopPropagation()}>{row.leaderEmail}</a> : "-"}
+                        </TableCell>
                         <TableCell style={{ color: colors.green, fontWeight: 700, textAlign: "center" }}>{displayCount(row.approved)}</TableCell>
                         <TableCell style={{ color: colors.amber, fontWeight: 700, textAlign: "center" }}>{displayCount(row.pending_approval)}</TableCell>
                         <TableCell style={{ color: row.isMissing ? colors.red : colors.muted, fontWeight: 700, textAlign: "center" }}>{displayCount(row.missing_cells_count)}</TableCell>
