@@ -51,7 +51,7 @@ export interface RoleCapabilities {
   home: string;
   /** Hierarchy level the role's roll-up dashboards start from. */
   scopeType: ScopeType;
-  /** Section = primary approver; Area/Zone = fallback; everyone else = none. */
+  /** Section = primary approver; Area/Zone/District/Region = fallback; everyone else = none. */
   approverKind: ApproverKind;
   /** Convenience: `approverKind !== "none"`. */
   canApprove: boolean;
@@ -121,8 +121,14 @@ export const CAPABILITIES: Record<RoleName, RoleCapabilities> = {
     readOnly: false,
     label: "MSU Team",
   },
-  REGION_LEADER: coordinator("region", "none", { readOnly: true, label: "Regional Coordinator" }),
-  DISTRICT_LEADER: coordinator("district", "none", { readOnly: true, label: "District Coordinator" }),
+  REGION_LEADER: coordinator("region", "fallback", {
+    canSubmitReports: false,
+    label: "Regional Coordinator",
+  }),
+  DISTRICT_LEADER: coordinator("district", "fallback", {
+    canSubmitReports: false,
+    label: "District Coordinator",
+  }),
   ZONE_LEADER: coordinator("zone", "fallback", { label: "Zonal Coordinator" }),
   AREA_LEADER: coordinator("area", "fallback", { label: "Area Coordinator" }),
   SECTION_LEADER: coordinator("section", "primary", { label: "Section Leader" }),

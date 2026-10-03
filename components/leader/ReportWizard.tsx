@@ -22,12 +22,38 @@ import { formatServiceDate } from "@/lib/dates";
 import { useCreateReport, useUpdateReport } from "@/hooks/api/reports";
 import { useApprovalSettings } from "@/hooks/api/approvals";
 import { ApiError } from "@/lib/api/errors";
+import { notify } from "@/lib/toast";
 import type { SundayReport } from "@/lib/api/types";
 
 /** Whole/half-hour phrasing for the fallback-approval window ("36 hours", "1.5 hours"). */
 function formatHours(seconds: number): string {
   const hours = Math.round((seconds / 3600) * 10) / 10;
   return `${hours} hour${hours === 1 ? "" : "s"}`;
+}
+
+/**
+ * The API has one `comment` field: when an approver sends a report back, their
+ * note replaces the leader's own comment. The leader's original is therefore
+ * remembered on this device (by report id) so it can prefill a resubmission.
+ */
+const commentStoreKey = (reportId: string) => `dcc:report-comment:${reportId}`;
+
+function readStoredComment(reportId?: string): string {
+  if (!reportId || typeof window === "undefined") return "";
+  try {
+    return window.localStorage.getItem(commentStoreKey(reportId)) ?? "";
+  } catch {
+    return "";
+  }
+}
+
+function storeComment(reportId: string | undefined, value: string) {
+  if (!reportId || typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(commentStoreKey(reportId), value);
+  } catch {
+    /* storage unavailable — the comment just won't be prefilled */
+  }
 }
 
 type Figures = Partial<Record<FigureKey, number | null>>;
@@ -130,8 +156,9 @@ export function ReportWizard({
     existing?.meeting_held ?? true,
   );
 
+  // On a rejected report, `existing.comment` is the approver's note, not the leader's.
   const [comment, setComment] = useState<string>(
-    existing?.comment ?? "",
+    isResubmit ? readStoredComment(existing?.id) : (existing?.comment ?? ""),
   );
 
   /**
@@ -145,14 +172,6 @@ export function ReportWizard({
   const [fieldErrors, setFieldErrors] = useState<
     Partial<Record<FigureKey, string>>
   >({});
-
-  /**
-   * Toast state for backend/API errors.
-   */
-  const [toast, setToast] = useState<{
-    message: string;
-    type: "error" | "success";
-  } | null>(null);
 
   const createReport = useCreateReport();
   const updateReport = useUpdateReport(existing?.id ?? "");
@@ -187,24 +206,8 @@ export function ReportWizard({
   const submitDisabled =
     pending || (commentRequired && !comment.trim());
 
-  /**
-   * Show a toast and automatically remove it after a few seconds.
-   */
-  function showToast(
-    message: string,
-    type: "error" | "success" = "error",
-  ) {
-    setToast({ message, type });
-
-    window.setTimeout(() => {
-      setToast((current) => {
-        if (current?.message === message) {
-          return null;
-        }
-
-        return current;
-      });
-    }, 5000);
+  function showToast(message: string) {
+    notify.error(message);
   }
 
   /**
@@ -507,8 +510,6 @@ export function ReportWizard({
   }
 
   async function submit() {
-    setToast(null);
-
     /**
      * If the meeting did not hold, the comment is required.
      */
@@ -546,15 +547,20 @@ export function ReportWizard({
     try {
       if (isResubmit && existing) {
         await updateReport.mutateAsync(payload as never);
+        storeComment(existing.id, comment.trim());
       } else {
-        await createReport.mutateAsync(payload as never);
+        const created = await createReport.mutateAsync(payload as never);
+        storeComment(created?.id, comment.trim());
       }
 
+      notify.success(
+        isResubmit ? "Report resubmitted successfully" : "Report submitted successfully",
+      );
       router.push("/cell");
     } catch (err) {
       handleBackendValidationError(err);
 
-      showToast(getBackendErrorMessage(err));
+      notify.error(getBackendErrorMessage(err));
     }
   }
 
@@ -571,41 +577,6 @@ export function ReportWizard({
         gap: 20,
       }}
     >
-      {/* Toast */}
-      {toast && (
-        <div
-          role="alert"
-          style={{
-            position: "fixed",
-            top: 20,
-            right: 20,
-            zIndex: 1000,
-            width: "min(420px, calc(100vw - 40px))",
-            padding: "14px 16px",
-            borderRadius: 10,
-            background:
-              toast.type === "error"
-                ? colors.redSoft
-                : colors.panel,
-            border: `1px solid ${
-              toast.type === "error"
-                ? colors.redSoftBorder
-                : colors.borderStrong
-            }`,
-            boxShadow:
-              "0 10px 30px rgba(0, 0, 0, 0.12)",
-            color:
-              toast.type === "error"
-                ? colors.red
-                : colors.ink,
-            fontSize: 13,
-            lineHeight: 1.45,
-          }}
-        >
-          {toast.message}
-        </div>
-      )}
-
       <Card style={{ padding: 16 }}>
         <label
           style={{

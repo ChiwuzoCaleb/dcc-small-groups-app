@@ -43,9 +43,16 @@ export default function MyCellPage() {
     () => mostRecentSunday(new Date()).toISOString().slice(0, 10),
     [],
   );
-  // Every page, merged — feeds the stat cards, streak and attendance chart, which
-  // all need the whole history. Loads in the background; the table doesn't wait on it.
+  // Every page, merged — feeds the stat cards, streak, attendance chart, and
+  // the table's globally date-ordered rows.
   const mine = useMyReports();
+  const reports = useMemo(
+    () =>
+      [...(mine.data ?? [])].sort((a, b) =>
+        (b.service_date ?? "").localeCompare(a.service_date ?? ""),
+      ),
+    [mine.data],
+  );
   // Track the id, not the object, so the open dialog stays current across refetches.
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
@@ -59,11 +66,15 @@ export default function MyCellPage() {
   // input reports a "valid" date while the year is still being typed (0002-…, 0020-…).
   const [dateDraft, setDateDraft] = useState("");
   const pageQuery = useMyReportsPage(page, dateFilter || undefined);
-  const pageRows = pageQuery.data?.results ?? [];
-  const totalCount = pageQuery.data?.count ?? 0;
+  const serverPageRows = pageQuery.data?.results ?? [];
   // The API doesn't state its page size; a page that has a `next` is a full page,
   // so its length is the size. Remembered on navigation so later pages can use it.
-  const pageSize = knownPageSize ?? (pageRows.length || 1);
+  const pageSize = knownPageSize ?? (serverPageRows.length || 1);
+  const filteredReports = dateFilter
+    ? reports.filter((r) => r.service_date === dateFilter)
+    : reports;
+  const totalCount = filteredReports.length;
+  const pageRows = filteredReports.slice((page - 1) * pageSize, page * pageSize);
   const pageCount = Math.max(1, Math.ceil(totalCount / pageSize));
   const rangeStart = (page - 1) * pageSize + 1;
   const rangeEnd = rangeStart + pageRows.length - 1;
@@ -92,13 +103,6 @@ export default function MyCellPage() {
     setPage(target);
   }
 
-  const reports = useMemo(
-    () =>
-      [...(mine.data ?? [])].sort((a, b) =>
-        (b.service_date ?? "").localeCompare(a.service_date ?? ""),
-      ),
-    [mine.data],
-  );
   const current = reports.find((r) => r.service_date === serviceDate) ?? null;
   // A row may be clicked before the all-pages query has finished, so look on the
   // visible page first.
@@ -295,8 +299,12 @@ export default function MyCellPage() {
               )}
             </div>
           )}
-          {pageQuery.isLoading ? (
+          {mine.isLoading || pageQuery.isLoading ? (
             <SubmissionTableSkeleton />
+          ) : mine.isError ? (
+            <div style={{ fontSize: 12.5, color: colors.red }}>
+              Could not load your report history: {mine.error.message}
+            </div>
           ) : pageQuery.isError && !pageQuery.data ? (
             <div
               style={{
@@ -423,6 +431,11 @@ const SUBMISSION_COLUMNS: { key: string; label: string; align: Align }[] = [
   { key: "status", label: "Status", align: "right" },
 ];
 
+function formatSubmissionServiceDate(serviceDate: string) {
+  const [year, month, day] = serviceDate.split("-");
+  return `${day}-${month}-${year}`;
+}
+
 function alignClass(align: Align) {
   return align === "right" ? "text-right" : undefined;
 }
@@ -469,7 +482,7 @@ function SubmissionTable({
           >
             <TableCell className="font-medium">
               {r.service_date
-                ? formatServiceDate(new Date(r.service_date))
+                ? formatSubmissionServiceDate(r.service_date)
                 : "—"}
             </TableCell>
             <TableCell

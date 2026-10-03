@@ -67,6 +67,18 @@ function personLabel(value: unknown): string | null {
   return null;
 }
 
+/** `approved_by` is only a user ID; the approver's details live on the hierarchy leaders embedded in the report. */
+function approverName(
+  approvedBy: unknown,
+  units: (ReportOrgUnit | null | undefined)[],
+): string | null {
+  if (!approvedBy) return null;
+  if (typeof approvedBy === "object") return personLabel(approvedBy);
+  const leader = units.map((u) => u?.leader).find((l) => l?.id === approvedBy);
+  if (!leader) return null;
+  return [leader.first_name, leader.last_name].filter(Boolean).join(" ") || leader.email || null;
+}
+
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
     <section>
@@ -182,94 +194,97 @@ export function ReportDetailDialog({
             </DialogDescription>
           </DialogHeader>
 
-          <div className="flex-1 space-y-7 overflow-y-auto p-5">
-            {notice && <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-900">{notice}</p>}
-            <Section title="Overview">
-              <dl className="grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-3">
-                <Field label="Service date">{fullDate(report.service_date)}</Field>
-                <Field label="Meeting held">
-                  {report.meeting_held === undefined ? "—" : report.meeting_held ? "Yes" : "No"}
-                </Field>
-                <Field label="Status">{humanize(report.approval_status)}</Field>
-                <Field label="Submitted">{dateTime(report.date_created)}</Field>
-                <Field label="Last updated">{dateTime(report.last_updated)}</Field>
-                <Field label="Approved by">{personLabel(report.approved_by)}</Field>
-                <Field label="Approved at">{dateTime(report.approved_at)}</Field>
-                {cellRef && <Field label="Cell">{cellRef}</Field>}
-                <Field label="Report ID">
-                  <span className="font-mono text-xs">{report.id}</span>
-                </Field>
-              </dl>
-            </Section>
-
-            <Section title="Comment">
-              {report.comment ? (
-                <p className="rounded-lg bg-muted px-3 py-2.5 text-sm leading-relaxed whitespace-pre-wrap">
-                  {report.comment}
-                </p>
-              ) : (
-                <p className="text-sm text-muted-foreground">No comment was added.</p>
-              )}
-            </Section>
-
-            {figureGroups.length === 0 ? (
-              <Section title="Figures">
-                <p className="text-sm text-muted-foreground">
-                  {report.meeting_held === false ? "No figures — the meeting did not hold." : "No figures were recorded."}
-                </p>
+          {report.meeting_held === false ? (
+            <div className="p-5">
+              <p className="rounded-md border border-border bg-muted/40 px-4 py-3 text-sm leading-relaxed text-foreground">
+                No meeting was held on this service date.
+              </p>
+            </div>
+          ) : (
+            <div className="flex-1 space-y-7 overflow-y-auto p-5">
+              {notice && <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-900">{notice}</p>}
+              <Section title="Overview">
+                <dl className="grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-3">
+                  <Field label="Service date">{fullDate(report.service_date)}</Field>
+                  <Field label="Meeting held">
+                    {report.meeting_held === undefined ? "—" : report.meeting_held ? "Yes" : "No"}
+                  </Field>
+                  <Field label="Status">{humanize(report.approval_status)}</Field>
+                  <Field label="Submitted">{dateTime(report.date_created)}</Field>
+                  <Field label="Last updated">{dateTime(report.last_updated)}</Field>
+                  <Field label="Approved by">{approverName(report.approved_by, [cell, section, area, zone, district, region])}</Field>
+                  <Field label="Approved at">{dateTime(report.approved_at)}</Field>
+                  {cellRef && <Field label="Cell">{cellRef}</Field>}
+                </dl>
               </Section>
-            ) : (
-              figureGroups.map((group) => (
-                <Section key={group.category} title={group.category}>
-                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                    {group.entries.map((e) => (
-                      <div key={e.key} className="rounded-lg border px-3 py-2">
-                        <div className="font-mono text-base font-semibold">
-                          {e.key === "total_offering" ? formatMoney(e.value, report.currency) : e.value}
+
+              <Section title="Comment">
+                {report.comment ? (
+                  <p className="rounded-lg bg-muted px-3 py-2.5 text-sm leading-relaxed whitespace-pre-wrap">
+                    {report.comment}
+                  </p>
+                ) : (
+                  <p className="text-sm text-muted-foreground">No comment was added.</p>
+                )}
+              </Section>
+
+              {figureGroups.length === 0 ? (
+                <Section title="Figures">
+                  <p className="text-sm text-muted-foreground">No figures were recorded.</p>
+                </Section>
+              ) : (
+                figureGroups.map((group) => (
+                  <Section key={group.category} title={group.category}>
+                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                      {group.entries.map((e) => (
+                        <div key={e.key} className="rounded-lg border px-3 py-2">
+                          <div className="font-mono text-base font-semibold">
+                            {e.key === "total_offering" ? formatMoney(e.value, report.currency) : e.value}
+                          </div>
+                          <div className="text-[11px] leading-tight text-muted-foreground">{e.label}</div>
                         </div>
-                        <div className="text-[11px] leading-tight text-muted-foreground">{e.label}</div>
-                      </div>
-                    ))}
+                      ))}
+                    </div>
+                  </Section>
+                ))
+              )}
+
+              {cell && (
+                <Section title="Cell">
+                  <dl className="grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-3">
+                    <Field label="Name">{cell.name}</Field>
+                    <Field label="Code">{cell.code}</Field>
+                    <Field label="Type">{humanize(cell.cell_type)}</Field>
+                    <Field label="Status">{humanize(cell.status)}</Field>
+                    {cell.cell_id && <Field label="Cell ID">{cell.cell_id}</Field>}
+                    <div className="col-span-2 min-w-0 sm:col-span-3">
+                      <Field label="Address">{cell.address}</Field>
+                    </div>
+                    <Field label="Latitude">{cell.latitude ?? undefined}</Field>
+                    <Field label="Longitude">{cell.longitude ?? undefined}</Field>
+                  </dl>
+                  <div className="mt-4">
+                    <div className="mb-1.5 text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
+                      Cell leader
+                    </div>
+                    <Person user={cell.leader} />
                   </div>
                 </Section>
-              ))
-            )}
+              )}
 
-            {cell && (
-              <Section title="Cell">
-                <dl className="grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-3">
-                  <Field label="Name">{cell.name}</Field>
-                  <Field label="Code">{cell.code}</Field>
-                  <Field label="Type">{humanize(cell.cell_type)}</Field>
-                  <Field label="Status">{humanize(cell.status)}</Field>
-                  {cell.cell_id && <Field label="Cell ID">{cell.cell_id}</Field>}
-                  <div className="col-span-2 min-w-0 sm:col-span-3">
-                    <Field label="Address">{cell.address}</Field>
+              {(section || area || zone || district || region) && (
+                <Section title="Hierarchy">
+                  <div className="space-y-2">
+                    <OrgRow level="Section" unit={section} />
+                    <OrgRow level="Area" unit={area} />
+                    <OrgRow level="Zone" unit={zone} />
+                    <OrgRow level="District" unit={district} />
+                    <OrgRow level="Region" unit={region} />
                   </div>
-                  <Field label="Latitude">{cell.latitude ?? undefined}</Field>
-                  <Field label="Longitude">{cell.longitude ?? undefined}</Field>
-                </dl>
-                <div className="mt-4">
-                  <div className="mb-1.5 text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
-                    Cell leader
-                  </div>
-                  <Person user={cell.leader} />
-                </div>
-              </Section>
-            )}
-
-            {(section || area || zone || district || region) && (
-              <Section title="Hierarchy">
-                <div className="space-y-2">
-                  <OrgRow level="Section" unit={section} />
-                  <OrgRow level="Area" unit={area} />
-                  <OrgRow level="Zone" unit={zone} />
-                  <OrgRow level="District" unit={district} />
-                  <OrgRow level="Region" unit={region} />
-                </div>
-              </Section>
-            )}
-          </div>
+                </Section>
+              )}
+            </div>
+          )}
         </DialogContent>
       ) : dialogOpen ? (
         <DialogContent className="flex max-h-[90vh] flex-col gap-0 p-0 sm:max-w-lg">

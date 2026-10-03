@@ -60,14 +60,31 @@ export const api = {
   patch: <T>(path: string, body?: unknown, options?: ApiCallOptions) => call<T>("PATCH", path, body, options),
   delete: <T>(path: string, options?: ApiCallOptions) => call<T>("DELETE", path, undefined, options),
 
-  /** Fetch a file (e.g. the CSV export) as a Blob, honoring the proxied auth. */
-  async download(path: string, options: ApiCallOptions = {}): Promise<{ blob: Blob; filename: string | null }> {
+  /** Fetch a file (e.g. an Excel export) as a Blob, honoring the proxied auth. */
+  async download(
+    path: string,
+    options: ApiCallOptions & { method?: "GET" | "POST"; body?: unknown } = {},
+  ): Promise<{ blob: Blob; filename: string | null }> {
     const url = withQuery(toProxyUrl(path), options.query);
-    const res = await fetch(url, { credentials: "same-origin", signal: options.signal });
+    const hasBody = options.body !== undefined && options.method === "POST";
+    const res = await fetch(url, {
+      method: options.method ?? "GET",
+      credentials: "same-origin",
+      signal: options.signal,
+      headers: hasBody ? { "Content-Type": "application/json" } : undefined,
+      body: hasBody ? JSON.stringify(options.body) : undefined,
+    });
     if (!res.ok) {
       const text = await res.text().catch(() => "");
       if (res.status === 401) onAuthExpired?.();
-      throw new ApiError({ status: res.status, message: text || `Download failed (${res.status}).` });
+      let message = text;
+      try {
+        const parsed = JSON.parse(text) as { detail?: unknown };
+        if (typeof parsed.detail === "string") message = parsed.detail;
+      } catch {
+        // not JSON — keep the raw text
+      }
+      throw new ApiError({ status: res.status, message: message || `Download failed (${res.status}).` });
     }
     const disposition = res.headers.get("content-disposition") ?? "";
     const match = /filename\*?=(?:UTF-8'')?"?([^";]+)"?/i.exec(disposition);

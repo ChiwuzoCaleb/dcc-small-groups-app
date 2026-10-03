@@ -3,6 +3,8 @@
 /** Typed hooks for `/api/v1/reports/…`. */
 
 import { API_ROUTES } from "@/lib/api/config";
+import { api } from "@/lib/api/client";
+import { useMutation } from "@tanstack/react-query";
 import type {
   CreateReportInput,
   Paginated,
@@ -12,6 +14,7 @@ import type {
   WhatsAppReportInput,
 } from "@/lib/api/types";
 import {
+  ApiError,
   queryKeys,
   useApiAllPagesQuery,
   useApiInfiniteQuery,
@@ -19,6 +22,31 @@ import {
   useApiQuery,
   type QueryParams,
 } from "../useApi";
+
+/** Download a scoped Excel export of the reports for one service date (`POST reports/export/`). */
+export function useExportReports() {
+  return useMutation<void, ApiError, { date: string; regionId: string }>({
+    mutationFn: async ({ date, regionId }) => {
+      const { blob } = await api.download(API_ROUTES.reportsExport, {
+        method: "POST",
+        body: { date, region_id: regionId },
+      });
+      const xlsx = new Blob([blob], {
+        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      });
+      const [y, m, d] = date.split("-");
+      const name = `DCC Sunday Report - ${d}-${m}-${y}.xlsx`;
+      const url = URL.createObjectURL(xlsx);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = name;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    },
+  });
+}
 
 /** Paginated list of reports in the caller's scope. */
 export function useReports(params?: { page?: number } & QueryParams) {

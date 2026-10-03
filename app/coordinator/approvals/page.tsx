@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { PageHeader, Card, Button, TextArea } from "@/components/ui";
 import { Skeleton } from "@/components/ui/skeleton";
 import { colors, mono } from "@/lib/tokens";
@@ -46,11 +46,28 @@ export default function ApprovalsPage() {
     [queue.data],
   );
 
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 60_000);
+    return () => clearInterval(t);
+  }, []);
+
+  // The dashboard endpoint omits reports the queue endpoint leaves out, so
+  // derive the wait from the submission time for any report it doesn't list.
   const waitById = useMemo(() => {
     const map = new Map<string, ApprovalWaitItem>();
     for (const w of waits.data ?? []) if (w.id) map.set(String(w.id), w);
+    for (const r of reports) {
+      if (map.has(r.id)) continue;
+      const since = Date.parse(r.last_updated ?? r.date_created ?? "");
+      if (Number.isNaN(since)) continue;
+      map.set(r.id, {
+        id: r.id,
+        waiting_seconds: Math.max(0, Math.floor((now - since) / 1000)),
+      } as ApprovalWaitItem);
+    }
     return map;
-  }, [waits.data]);
+  }, [waits.data, reports, now]);
 
   // `selectedId` only tracks explicit clicks; the effective selection falls
   // back to the first row so it stays valid as the queue refetches.
@@ -90,13 +107,13 @@ export default function ApprovalsPage() {
           <Card style={{ padding: 16, background: colors.panel }}>
             <div style={{ fontSize: 12.5, color: colors.muted }}>
               Your role has view-only access here — approvals are handled by Section Leaders, with
-              Area and Zonal Coordinators as fallback.
+              Area, Zonal, District and Regional Coordinators as fallback.
             </div>
           </Card>
         )}
 
         {queue.isError ? (
-          <ErrorCard message={`Could not load the approvals queue: ${queue.error.message}`} />
+          <ErrorCard message={`Could not load the approvals queue: ${queue.error?.message ?? "unknown error"}`} />
         ) : (
           <div
             style={{

@@ -21,7 +21,9 @@ import {
   useUnitDashboard,
 } from "@/hooks/api/dashboard";
 import { ReportDetailDialog } from "@/components/leader/ReportDetailDialog";
-import { useReport, useScopedReportsForCell } from "@/hooks/api/reports";
+import { useReport, useScopedReportsForCell, useExportReports } from "@/hooks/api/reports";
+import { notify } from "@/lib/toast";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useAuth } from "@/hooks/useAuth";
 import { useRole } from "@/hooks/useRole";
 import { colors, mono } from "@/lib/tokens";
@@ -296,6 +298,40 @@ export default function CoordinatorPage() {
     return reports.find((report) => report.service_date === serviceDate) ?? null;
   }, [scopedReports.data, selectedCell, serviceDate]);
   const reportDetail = useReport(selectedReport?.id ?? null);
+  const userRegionId = asRecord(userRecord?.region)?.id;
+  const regionId = useMemo(() => {
+    if (typeof userRegionId === "string" && userRegionId) return userRegionId;
+    if (scopeLevel === "region" && assignedId) return assignedId;
+    for (const report of scopedReports.data ?? []) {
+      const cell = asRecord(report.cell);
+      const district = asRecord(asRecord(asRecord(asRecord(cell?.section)?.area)?.zone)?.district);
+      const id = asRecord(district?.region)?.id;
+      if (typeof id === "string" && id) return id;
+    }
+    return "";
+  }, [assignedId, scopeLevel, scopedReports.data, userRegionId]);
+  const [confirmExport, setConfirmExport] = useState(false);
+  const exportReports = useExportReports();
+  function handleExport() {
+    if (!regionId) {
+      setConfirmExport(false);
+      notify.error("Couldn't determine your region for the export. Please try again shortly.");
+      return;
+    }
+    exportReports.mutate(
+      { date: serviceDate, regionId },
+      {
+        onSuccess: () => {
+          setConfirmExport(false);
+          notify.success("Report export downloaded.");
+        },
+        onError: (err) => {
+          setConfirmExport(false);
+          notify.error(err.message || "Could not export reports.");
+        },
+      },
+    );
+  }
   const unitDetails = useMemo(() => {
     const details: Record<"district" | "zone" | "area" | "section", Map<string, { name: string | null; code: string | null }>> = {
       district: new Map(),
@@ -409,7 +445,35 @@ export default function CoordinatorPage() {
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <ServiceDatePicker value={serviceDate} onChange={(date) => { setServiceDate(date); setDrillPath([]); setPage(1); }} />
             {(role === "ZONE_LEADER" || role === "DISTRICT_LEADER" || role === "REGION_LEADER") && (
-              <Button variant="secondary" padding="8px 12px" fontSize={12.5}>Export CSV</Button>
+              <>
+              <Button
+                variant="secondary"
+                padding="8px 12px"
+                fontSize={12.5}
+                onClick={() => setConfirmExport(true)}
+                disabled={exportReports.isPending}
+              >
+                {exportReports.isPending ? "Exporting…" : "Export Report"}
+              </Button>
+              <Dialog open={confirmExport} onOpenChange={(open) => { if (!exportReports.isPending) setConfirmExport(open); }}>
+                <DialogContent className="sm:max-w-md">
+                  <DialogHeader>
+                    <DialogTitle>Export Sunday report?</DialogTitle>
+                    <DialogDescription>
+                      This will generate an Excel file of all cell reports for {new Date(`${serviceDate}T00:00:00Z`).toLocaleDateString("en-GB", { weekday: "long", day: "2-digit", month: "long", year: "numeric", timeZone: "UTC" })}.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <DialogFooter>
+                    <Button variant="secondary" padding="9px 14px" fontSize={13} disabled={exportReports.isPending} onClick={() => setConfirmExport(false)}>
+                      Cancel
+                    </Button>
+                    <Button variant="dark" padding="9px 14px" fontSize={13} disabled={exportReports.isPending} onClick={handleExport}>
+                      {exportReports.isPending ? "Exporting…" : "Yes, export"}
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+              </>
             )}
           </div>
         }

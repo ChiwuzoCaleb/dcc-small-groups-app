@@ -28,11 +28,11 @@ function shouldRetry(failureCount: number, error: unknown): boolean {
 
 const defaultOptions: DefaultOptions = {
   queries: {
-    staleTime: 30_000,
-    gcTime: 5 * 60_000,
+    staleTime: 60_000,
+    gcTime: 10 * 60_000,
     retry: shouldRetry,
     retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 8_000),
-    refetchOnWindowFocus: true,
+    refetchOnWindowFocus: false,
     refetchOnReconnect: true,
   },
   mutations: {

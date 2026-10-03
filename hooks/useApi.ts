@@ -185,13 +185,30 @@ export function useApiAllPagesQuery<TItem>(
   return useQuery<TItem[], ApiError, TItem[], QueryKey>({
     queryKey: key,
     queryFn: async ({ signal }) => {
-      const items: TItem[] = [];
-      let page: number | undefined = 1;
-      for (let i = 0; page !== undefined && i < maxPages; i++) {
-        const body: Paginated<TItem> | TItem[] = await api.get<Paginated<TItem> | TItem[]>(path, {
-          query: { ...params, page },
-          signal,
-        });
+      const fetchPage = (page: number) =>
+        api.get<Paginated<TItem> | TItem[]>(path, { query: { ...params, page }, signal });
+
+      const first = await fetchPage(1);
+      const items = asArray<TItem>(first);
+      if (Array.isArray(first) || first.next == null) return items;
+
+      // Page 1 tells us the total and page size, so the remaining pages can be
+      // requested in parallel instead of one round trip after another.
+      const pageSize = items.length;
+      const total = typeof first.count === "number" ? first.count : 0;
+      if (pageSize > 0 && total > pageSize) {
+        const last = Math.min(Math.ceil(total / pageSize), maxPages);
+        const rest = await Promise.all(
+          Array.from({ length: last - 1 }, (_, i) => fetchPage(i + 2)),
+        );
+        for (const body of rest) items.push(...asArray<TItem>(body));
+        return items;
+      }
+
+      // No usable count: fall back to following `next`.
+      let page = pageFromUrl(first.next);
+      for (let i = 1; page !== undefined && i < maxPages; i++) {
+        const body: Paginated<TItem> | TItem[] = await fetchPage(page);
         items.push(...asArray<TItem>(body));
         const next: number | undefined = Array.isArray(body) ? undefined : pageFromUrl(body.next);
         page = next !== undefined && next > page ? next : undefined;
@@ -270,9 +287,11 @@ export function useApiMutation<TData = unknown, TVariables = void>(
     mutationFn,
     onSuccess: async (...args: Parameters<NonNullable<typeof onSuccess>>) => {
       if (invalidateKeys?.length) {
-        await Promise.all(
+        // Refetch in the background so callers (and their success toasts) aren't
+        // held up by slow list queries once the server has confirmed the change.
+        void Promise.all(
           invalidateKeys.map((queryKey) => queryClient.invalidateQueries({ queryKey })),
-        );
+        ).catch(() => undefined);
       }
       await onSuccess?.(...args);
     },

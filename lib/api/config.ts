@@ -62,6 +62,7 @@ export const API_ROUTES = {
   reportApprove: (id: string) => `v1/reports/${id}/approve/`,
   reportReject: (id: string) => `v1/reports/${id}/reject/`,
   myReports: "v1/reports/mine/",
+  reportsExport: "v1/reports/export/",
   /** Submit on behalf of a cell identified by `cell_code` (WhatsApp channel). */
   reportWhatsapp: "v1/reports/whatsapp/",
 
