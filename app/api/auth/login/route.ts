@@ -31,7 +31,7 @@ export async function POST(request: Request) {
 
   if (!identifier || typeof password !== "string" || !password) {
     return NextResponse.json(
-      { detail: "An email or cell code and a password are required.", code: "invalid_input" },
+      { detail: "An email and a password are required.", code: "invalid_input" },
       { status: 400 },
     );
   }

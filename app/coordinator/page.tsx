@@ -160,6 +160,19 @@ function countCells(node: DashboardOrgNode, level: UnitLevel): number | null {
   return total;
 }
 
+function countByApproval(node: DashboardOrgNode, level: UnitLevel, status: string): number | null {
+  const next = NEXT_LEVEL[level];
+  if (!next) return null;
+  const children = childUnits(node, next);
+  if (next === "cell") {
+    if (!Array.isArray(node.all_cells) && !Array.isArray(node.cells)) return null;
+    return children.filter((cell) => cell.has_submitted !== false && cell.approval_status === status).length;
+  }
+  let total = 0;
+  for (const child of children) total += countByApproval(child, next, status) ?? 0;
+  return total;
+}
+
 function rowFromUnit(
   unit: DashboardOrgNode,
   level: UnitLevel,
@@ -202,8 +215,8 @@ function rowFromUnit(
     name,
     code,
     leader,
-    approved: optionalNumber(unit.approved ?? unit.approved_count),
-    pending_approval: optionalNumber(unit.pending_approval ?? unit.pending) ?? (isCell && approvalStatus ? (approvalStatus === "PENDING" ? 1 : 0) : null),
+    approved: optionalNumber(unit.approved ?? unit.approved_count) ?? (isCell ? null : countByApproval(unit, level, "APPROVED")),
+    pending_approval: optionalNumber(unit.pending_approval ?? unit.pending) ?? (!isCell ? countByApproval(unit, level, "PENDING") : null) ?? (isCell && approvalStatus ? (approvalStatus === "PENDING" ? 1 : 0) : null),
     approvalStatus,
     missing_cells_count: optionalNumber(unit.missing_cells_count) ?? (isCell && isMissing ? 1 : null),
     compliance_percentage: optionalNumber(unit.compliance_percentage),
@@ -328,7 +341,7 @@ export default function CoordinatorPage() {
   const missing = scopeSummary
     ? Math.max(0, scopeSummary.total_cells - scopeSummary.submitted_cells)
     : optionalNumber(scopeNode?.missing_cells_count);
-  const pending = optionalNumber(scopeSummary?.pending_approval);
+  const pending = optionalNumber(scopeSummary?.pending_approval) ?? (scopeNode ? countByApproval(scopeNode, currentLevel, "PENDING") : null);
   const chronic = chronicCells.data?.length ?? null;
   const tableLevel = NEXT_LEVEL[currentLevel] ?? "cell";
   const tableLabels = UNIT_LABELS[tableLevel];
@@ -402,7 +415,7 @@ export default function CoordinatorPage() {
 
       <div className="dcc-page" style={{ padding: 28, display: "flex", flexDirection: "column", gap: 20, maxWidth: 1200 }}>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 16 }}>
-            <ComplianceMetricCard value={compliance} trend={trend.data ?? []} loading={trend.isLoading} />
+            <ComplianceMetricCard value={compliance} hasPending={(pending ?? 0) > 0} trend={trend.data ?? []} loading={trend.isLoading} />
           <MetricCard label="Not submitted" value={displayCount(missing)} detail="Cells missing a report for this Sunday." tone="red" />
           <MetricCard label="Pending approval" value={displayCount(pending)} detail="Reports waiting in your scope." tone="amber" />
           <MetricCard label="Chronic non-reporters" value={displayCount(chronic)} detail="Cells with 3 or more consecutive misses." tone="red" />
@@ -483,7 +496,9 @@ export default function CoordinatorPage() {
                 <TableRow><TableCell colSpan={currentLevel === "section" ? 5 : 6} style={{ padding: 30, textAlign: "center", color: colors.faint }}>No {tableLabels.plural.toLowerCase()} were returned for this unit.</TableCell></TableRow>
               ) : visibleRows.map((row) => {
                 const pct = row.compliance_percentage;
+                const complianceColor = (row.pending_approval ?? 0) > 0 ? colors.amber : pct !== null && pct >= 90 ? colors.green : pct !== null && pct >= 70 ? colors.amber : colors.red;
                 const isCellView = currentLevel === "section" && tableLevel === "cell";
+                const isPending = row.isCell && !row.isMissing && row.approvalStatus === "PENDING";
                 return (
                   <TableRow key={row.id} tabIndex={row.hasChildren || isCellView ? 0 : undefined} onClick={() => isCellView ? setSelectedCell(row) : drillInto(row)} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") isCellView ? setSelectedCell(row) : drillInto(row); }} style={{ background: "#fff", cursor: row.hasChildren || isCellView ? "pointer" : "default" }}>
                     <TableCell style={{ paddingTop: 16, paddingBottom: 16 }}>
@@ -509,7 +524,7 @@ export default function CoordinatorPage() {
                           {row.leaderEmail ? <a href={`mailto:${row.leaderEmail}`} onClick={(event) => event.stopPropagation()}>{row.leaderEmail}</a> : "-"}
                         </TableCell>
                         <TableCell>
-                          <span style={{ fontSize: 11, fontWeight: 600, padding: "4px 8px", borderRadius: 6, background: row.isMissing ? colors.amberSoft : colors.greenSoft, color: row.isMissing ? colors.amber : colors.green, whiteSpace: "nowrap" }}>
+                          <span style={{ fontSize: 11, fontWeight: 600, padding: "4px 8px", borderRadius: 6, background: row.isMissing ? colors.redSoft : isPending ? colors.amberSoft : colors.greenSoft, color: row.isMissing ? colors.red : isPending ? colors.amber : colors.green, whiteSpace: "nowrap" }}>
                             {row.isMissing ? "Not submitted" : selectedCell?.id === row.id && selectedReport ? selectedReport.approval_status.replaceAll("_", " ") : row.approvalStatus ? row.approvalStatus.replaceAll("_", " ") : "Submitted"}
                           </span>
                         </TableCell>
@@ -521,11 +536,11 @@ export default function CoordinatorPage() {
                         <TableCell style={{ color: colors.amber, fontWeight: 700, textAlign: "center" }}>{displayCount(row.pending_approval)}</TableCell>
                         <TableCell style={{ color: row.isMissing ? colors.red : colors.muted, fontWeight: 700, textAlign: "center" }}>{displayCount(row.missing_cells_count)}</TableCell>
                         <TableCell>
-                          {row.isCell ? <span style={{ color: row.isMissing ? colors.red : colors.green, fontWeight: 600 }}>{row.isMissing ? "Not submitted" : "Submitted"}</span> : pct === null ? "-" : (
+                          {row.isCell ? <span style={{ color: row.isMissing ? colors.red : isPending ? colors.amber : colors.green, fontWeight: 600 }}>{row.isMissing ? "Not submitted" : "Submitted"}</span> : pct === null ? "-" : (
                             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                              <span style={{ minWidth: 42, fontWeight: 700, fontSize: 13, color: pct >= 90 ? colors.green : pct >= 70 ? colors.amber : colors.red }}>{Math.round(pct)}%</span>
+                              <span style={{ minWidth: 42, fontWeight: 700, fontSize: 13, color: complianceColor }}>{Math.round(pct)}%</span>
                               <div style={{ width: 88, height: 6, background: colors.border, borderRadius: 999, overflow: "hidden" }}>
-                                <div style={{ width: `${Math.min(100, Math.max(0, pct))}%`, height: "100%", background: pct >= 90 ? colors.green : pct >= 70 ? colors.amber : colors.red }} />
+                                <div style={{ width: `${Math.min(100, Math.max(0, pct))}%`, height: "100%", background: complianceColor }} />
                               </div>
                             </div>
                           )}
@@ -590,14 +605,16 @@ function MetricCard({
 
 function ComplianceMetricCard({
   value,
+  hasPending,
   trend,
   loading,
 }: {
   value: number | null;
+  hasPending: boolean;
   trend: { service_date: string; compliance_percentage: number }[];
   loading: boolean;
 }) {
-  const tone = value !== null && value >= 90 ? "green" : value !== null && value >= 70 ? "amber" : "red";
+  const tone = hasPending ? "amber" : value !== null && value >= 90 ? "green" : value !== null && value >= 70 ? "amber" : "red";
   const color = tone === "green" ? colors.green : tone === "amber" ? colors.amber : colors.red;
 
   return (
@@ -617,7 +634,7 @@ function ComplianceMetricCard({
           const label = date.toLocaleDateString("en", { month: "short", day: "numeric" });
           return (
             <div key={point.service_date} title={`${label}: ${Math.round(percentage)}%`} style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-end", height: "100%", minWidth: 0 }}>
-              <div style={{ width: "100%", height: `${Math.max(3, percentage * 0.72)}%`, minHeight: 3, borderRadius: "2px 2px 0 0", background: point === trend[trend.length - 1] ? colors.red : "#DDE1E7" }} />
+              <div style={{ width: "100%", height: `${Math.max(3, percentage * 0.72)}%`, minHeight: 3, borderRadius: "2px 2px 0 0", background: point === trend[trend.length - 1] ? color : "#DDE1E7" }} />
               <span style={{ fontSize: 8, lineHeight: "10px", color: colors.faint2, marginTop: 2 }}>{label.split(" ")[1]}</span>
             </div>
           );

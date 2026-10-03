@@ -77,7 +77,7 @@ export function cellFrom(user: Record<string, unknown> | null | undefined): { co
   const text = (v: unknown) => (typeof v === "string" && v.trim() ? v.trim() : null);
   const cell = user?.cell && typeof user.cell === "object" ? (user.cell as Record<string, unknown>) : null;
   return {
-    code: text(user?.cell_code) ?? text(cell?.code) ?? text(cell?.cell_code) ?? text(user?.code),
+    code: text(user?.cell_code) ?? text(cell?.code) ?? text(cell?.cell_code),
     name: text(cell?.name),
     id: text(cell?.id),
   };
