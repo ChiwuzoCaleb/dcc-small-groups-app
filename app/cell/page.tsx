@@ -145,7 +145,7 @@ export default function MyCellPage() {
   return (
     <>
       <PageHeader
-        eyebrow={(() => { const c = cellFrom(user); const reportCell = (mine.data ?? []).find((r) => r.cell && typeof r.cell === "object" && r.cell.code)?.cell; const label = c.code ?? (reportCell && typeof reportCell === "object" ? reportCell.code : null) ?? c.name; return label ? `My cell · ${label}` : "My cell"; })()}
+        eyebrow={(() => { const c = cellFrom(user); const reportCell = (mine.data ?? []).find((r) => r.cell && typeof r.cell === "object" && r.cell.code)?.cell; const label = c.code ?? (reportCell && typeof reportCell === "object" ? reportCell.code : null) ?? c.name; return label ? `Cell Code · ${label}` : "My cell"; })()}
         title={`${greeting}${leaderName ? `, ${leaderName}` : ""}`}
         sub="Your Sunday reporting at a glance"
       />

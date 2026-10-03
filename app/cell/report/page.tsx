@@ -1,7 +1,9 @@
 "use client";
 
-import { useMemo } from "react";
-import { PageHeader } from "@/components/ui";
+import { useMemo, useState } from "react";
+import { Card, PageHeader } from "@/components/ui";
+import { Button } from "@/components/ui/button";
+import { SundayCalendar } from "@/components/leader/SundayCalendar";
 import { ReportWizard } from "@/components/leader/ReportWizard";
 import { useMyReports } from "@/hooks/api/reports";
 import { useAuth } from "@/hooks/useAuth";
@@ -11,11 +13,23 @@ import { colors } from "@/lib/tokens";
 
 export default function ReportPage() {
   const { user } = useAuth();
-  const serviceDate = useMemo(() => mostRecentSunday(new Date()).toISOString().slice(0, 10), []);
+  const latestSunday = useMemo(() => mostRecentSunday(new Date()).toISOString().slice(0, 10), []);
+  const [serviceDate, setServiceDate] = useState<string | null>(null);
   const mine = useMyReports();
 
+  const { reported, resubmittable } = useMemo(() => {
+    const done = new Set<string>();
+    const redo = new Set<string>();
+    for (const r of mine.data ?? []) {
+      if (!r.service_date) continue;
+      done.add(r.service_date);
+      if (r.approval_status === "REJECTED") redo.add(r.service_date);
+    }
+    return { reported: done, resubmittable: redo };
+  }, [mine.data]);
+
   const existing = useMemo(
-    () => (mine.data ?? []).find((r) => r.service_date === serviceDate) ?? null,
+    () => serviceDate ? (mine.data ?? []).find((r) => r.service_date === serviceDate) ?? null : null,
     [mine.data, serviceDate],
   );
   const cell = useMemo(() => {
@@ -29,15 +43,32 @@ export default function ReportPage() {
   const cellLabel = cell.code ?? cell.name;
   return (
     <>
-      <PageHeader eyebrow={cellLabel ? `Sunday report for ${cellLabel}` : "Sunday report"} title={`For ${formatServiceDate(new Date(serviceDate))}`} sub={serviceDate} />
+      <PageHeader eyebrow={cellLabel ? `Sunday report for ${cellLabel}` : "Sunday report"} title={serviceDate ? `For ${formatServiceDate(new Date(serviceDate))}` : "Choose a Sunday"} sub={serviceDate ?? "Select the Sunday you are reporting for"} />
       {mine.isLoading ? (
-        <div className="dcc-page" style={{ padding: 28, fontSize: 13, color: colors.muted }}>Loading this week&apos;s report…</div>
+        <div className="dcc-page" style={{ padding: 28, fontSize: 13, color: colors.muted }}>Loading your reports…</div>
       ) : mine.isError ? (
         <div className="dcc-page" style={{ padding: 28, fontSize: 13, color: colors.red }}>
           Could not load your reports: {mine.error.message}
         </div>
+      ) : !serviceDate ? (
+        <div className="dcc-page" style={{ padding: 28 }}>
+          <Card style={{ padding: 24, display: "flex", flexDirection: "column", gap: 8 }}>
+            <SundayCalendar
+              latestSunday={latestSunday}
+              reported={reported}
+              resubmittable={resubmittable}
+              selected={serviceDate}
+              onSelect={setServiceDate}
+            />
+          </Card>
+        </div>
       ) : (
-        <ReportWizard serviceDate={serviceDate} existing={existing} />
+        <>
+          <div className="dcc-page" style={{ padding: "0 28px 12px" }}>
+            <Button type="button" variant="outline" onClick={() => setServiceDate(null)}>Change date</Button>
+          </div>
+          <ReportWizard key={serviceDate} serviceDate={serviceDate} existing={existing} />
+        </>
       )}
     </>
   );
