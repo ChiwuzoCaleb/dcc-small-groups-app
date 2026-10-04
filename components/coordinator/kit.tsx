@@ -5,11 +5,12 @@
  * house inline-style idiom (see app/cell/page.tsx) — no design-system churn.
  */
 
+import { useEffect, useRef, useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
 import { Card } from "@/components/ui";
 import { Skeleton } from "@/components/ui/skeleton";
 import { colors, mono } from "@/lib/tokens";
-import { lastClosedSundays, formatServiceDate } from "@/lib/dates";
+import { lastClosedSundays, formatServiceDate, mostRecentSunday } from "@/lib/dates";
 import type { NonSubmitterRow } from "@/lib/api/types";
 
 export function complianceColor(pct: number): string {
@@ -83,9 +84,9 @@ export function cellFrom(user: Record<string, unknown> | null | undefined): { co
   };
 }
 
-/** The most recent Sunday whose reporting window has closed, as YYYY-MM-DD. */
+/** The most recent Sunday (today, if today is Sunday), as YYYY-MM-DD. */
 export function defaultServiceDate(): string {
-  return lastClosedSundays(1, new Date())[0].toISOString().slice(0, 10);
+  return mostRecentSunday(new Date()).toISOString().slice(0, 10);
 }
 
 /** The last `count` closed Sundays as `{ value: YYYY-MM-DD, label }`, most recent first. */
@@ -96,55 +97,161 @@ export function recentSundayOptions(count = 8): { value: string; label: string }
   }));
 }
 
-export function ServiceDatePicker({
-  value,
-  onChange,
-  count = 8,
-}: {
-  value: string;
-  onChange: (v: string) => void;
-  count?: number;
-}) {
-  const options = recentSundayOptions(count);
+const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+function parseISO(v: string): Date {
+  const [y, m, d] = v.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, d));
+}
+
+/** Header date control: opens a month calendar where only Sundays up to the latest closed one are selectable. */
+export function ServiceDatePicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const latest = defaultServiceDate();
+  const selected = parseISO(value);
+  const [open, setOpen] = useState(false);
+  const [view, setView] = useState(() => ({ y: selected.getUTCFullYear(), m: selected.getUTCMonth() }));
+  const rootRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: MouseEvent) => {
+      if (rootRef.current && !rootRef.current.contains(e.target as Node)) setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  const latestDate = parseISO(latest);
+  const atLatestMonth = view.y === latestDate.getUTCFullYear() && view.m === latestDate.getUTCMonth();
+  const shift = (delta: number) => {
+    const d = new Date(Date.UTC(view.y, view.m + delta, 1));
+    setView({ y: d.getUTCFullYear(), m: d.getUTCMonth() });
+  };
+
+  const first = new Date(Date.UTC(view.y, view.m, 1));
+  const daysInMonth = new Date(Date.UTC(view.y, view.m + 1, 0)).getUTCDate();
+  const cells: (number | null)[] = [
+    ...Array.from({ length: first.getUTCDay() }, () => null),
+    ...Array.from({ length: daysInMonth }, (_, i) => i + 1),
+  ];
+
+  const navBtn: CSSProperties = {
+    border: `1px solid ${colors.borderStrong}`,
+    background: "#fff",
+    borderRadius: 8,
+    width: 28,
+    height: 28,
+    cursor: "pointer",
+    fontSize: 14,
+  };
+
   return (
-    <label
-      style={{
-        display: "inline-flex",
-        alignItems: "center",
-        gap: 8,
-        border: `1px solid ${colors.borderStrong}`,
-        borderRadius: 10,
-        padding: "8px 12px",
-        background: "#fff",
-        fontSize: 12.5,
-        fontWeight: 500,
-      }}
-    >
-      <span style={{ color: colors.faint }}>Service Sunday</span>
-      <select
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
+    <div ref={rootRef} style={{ position: "relative", display: "inline-block" }}>
+      <button
+        type="button"
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        onClick={() => {
+          if (!open) setView({ y: selected.getUTCFullYear(), m: selected.getUTCMonth() });
+          setOpen((o) => !o);
+        }}
         style={{
-          border: "none",
-          background: "transparent",
+          display: "inline-flex",
+          alignItems: "center",
+          gap: 8,
+          border: `1px solid ${colors.borderStrong}`,
+          borderRadius: 10,
+          padding: "8px 12px",
+          background: "#fff",
           fontSize: 12.5,
-          fontWeight: 600,
-          fontFamily: mono,
-          outline: "none",
+          fontWeight: 500,
           cursor: "pointer",
         }}
       >
-        {options.some((o) => o.value === value) ? null : <option value={value}>{value}</option>}
-        {options.map((o) => (
-          <option key={o.value} value={o.value}>
-            {o.label}
-          </option>
-        ))}
-      </select>
-    </label>
+        <span style={{ color: colors.faint }}>Service Sunday</span>
+        <span style={{ fontWeight: 600, fontFamily: mono }}>
+          {selected.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric", timeZone: "UTC" })}
+        </span>
+        <span aria-hidden style={{ fontSize: 10 }}>{"\u25BE"}</span>
+      </button>
+      {open ? (
+        <div
+          role="dialog"
+          aria-label="Select service Sunday"
+          style={{
+            position: "absolute",
+            right: 0,
+            top: "calc(100% + 6px)",
+            zIndex: 50,
+            width: 280,
+            padding: 12,
+            background: "#fff",
+            border: `1px solid ${colors.borderStrong}`,
+            borderRadius: 12,
+            boxShadow: "0 8px 24px rgba(0,0,0,0.12)",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+            <button type="button" aria-label="Previous month" onClick={() => shift(-1)} style={navBtn}>{"\u2039"}</button>
+            <span style={{ fontSize: 13, fontWeight: 600 }}>{MONTHS[view.m]} {view.y}</span>
+            <button
+              type="button"
+              aria-label="Next month"
+              disabled={atLatestMonth}
+              onClick={() => shift(1)}
+              style={{ ...navBtn, opacity: atLatestMonth ? 0.35 : 1, cursor: atLatestMonth ? "default" : "pointer" }}
+            >
+              {"\u203A"}
+            </button>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 2, textAlign: "center" }}>
+            {WEEKDAYS.map((w) => (
+              <span key={w} style={{ fontSize: 10.5, color: colors.faint, padding: "4px 0" }}>{w}</span>
+            ))}
+            {cells.map((day, i) => {
+              if (day === null) return <span key={`b${i}`} />;
+              const iso = new Date(Date.UTC(view.y, view.m, day)).toISOString().slice(0, 10);
+              const isSunday = (first.getUTCDay() + day - 1) % 7 === 0;
+              const enabled = isSunday && iso <= latest;
+              const isSelected = iso === value;
+              return (
+                <button
+                  key={iso}
+                  type="button"
+                  disabled={!enabled}
+                  aria-pressed={isSelected}
+                  onClick={() => {
+                    onChange(iso);
+                    setOpen(false);
+                  }}
+                  style={{
+                    height: 32,
+                    border: "none",
+                    borderRadius: 8,
+                    fontSize: 12.5,
+                    fontWeight: enabled ? 600 : 400,
+                    background: isSelected ? colors.ink : "transparent",
+                    color: isSelected ? "#fff" : enabled ? colors.ink : colors.faint,
+                    opacity: enabled ? 1 : 0.35,
+                    cursor: enabled ? "pointer" : "default",
+                  }}
+                >
+                  {day}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      ) : null}
+    </div>
   );
 }
-
 export function StatTile({
   label,
   value,

@@ -195,10 +195,19 @@ export function ReportDetailDialog({
           </DialogHeader>
 
           {report.meeting_held === false ? (
-            <div className="p-5">
+            <div className="space-y-5 p-5">
               <p className="rounded-md border border-border bg-muted/40 px-4 py-3 text-sm leading-relaxed text-foreground">
                 No meeting was held on this service date.
               </p>
+              <Section title="Cell Leader's comment">
+                {report.comment ? (
+                  <p className="rounded-lg bg-muted px-3 py-2.5 text-sm leading-relaxed whitespace-pre-wrap">
+                    {report.comment}
+                  </p>
+                ) : (
+                  <p className="text-sm text-muted-foreground">No comment was added.</p>
+                )}
+              </Section>
             </div>
           ) : (
             <div className="flex-1 space-y-7 overflow-y-auto p-5">

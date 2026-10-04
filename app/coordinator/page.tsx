@@ -119,6 +119,15 @@ function findAssignedUnit(data: unknown, level: UnitLevel, id: string): Dashboar
   const unit = asRecord(record[level]);
   if (unit && String(unit.id ?? "") === id) return unit;
 
+  // The org dashboard lists units under plural keys (e.g. `regions: [{ id, … }]`).
+  const listed = record[`${level}s`];
+  if (Array.isArray(listed)) {
+    for (const item of listed) {
+      const candidate = asRecord(item);
+      if (candidate && String(candidate.id ?? "") === id) return candidate;
+    }
+  }
+
   for (const value of Object.values(record)) {
     const match = findAssignedUnit(value, level, id);
     if (match) return match;
