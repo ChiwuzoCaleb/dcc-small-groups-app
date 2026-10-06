@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { reportCommentText } from "@/lib/api/reportComments";
 import { colors, mono } from "@/lib/tokens";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -46,12 +47,16 @@ export default function MyCellPage() {
   // Every page, merged — feeds the stat cards, streak, attendance chart, and
   // the table's globally date-ordered rows.
   const mine = useMyReports();
+  // Page 1 is tiny and arrives first, so the dashboard shows the latest report
+  // while the full history is still loading. Shares its cache entry with the
+  // table when it is on page 1 with no filter.
+  const firstPage = useMyReportsPage(1);
   const reports = useMemo(
     () =>
-      [...(mine.data ?? [])].sort((a, b) =>
+      [...(mine.data ?? firstPage.data?.results ?? [])].sort((a, b) =>
         (b.service_date ?? "").localeCompare(a.service_date ?? ""),
       ),
-    [mine.data],
+    [mine.data, firstPage.data],
   );
   // Track the id, not the object, so the open dialog stays current across refetches.
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -70,11 +75,10 @@ export default function MyCellPage() {
   // The API doesn't state its page size; a page that has a `next` is a full page,
   // so its length is the size. Remembered on navigation so later pages can use it.
   const pageSize = knownPageSize ?? (serverPageRows.length || 1);
-  const filteredReports = dateFilter
-    ? reports.filter((r) => r.service_date === dateFilter)
-    : reports;
-  const totalCount = filteredReports.length;
-  const pageRows = filteredReports.slice((page - 1) * pageSize, page * pageSize);
+  // Rows come straight from the server page (already date-filtered by the API),
+  // so the table renders without waiting for the full history.
+  const pageRows = serverPageRows;
+  const totalCount = pageQuery.data?.count ?? pageRows.length;
   const pageCount = Math.max(1, Math.ceil(totalCount / pageSize));
   const rangeStart = (page - 1) * pageSize + 1;
   const rangeEnd = rangeStart + pageRows.length - 1;
@@ -108,14 +112,15 @@ export default function MyCellPage() {
   // visible page first.
   const selected =
     pageRows.find((r) => r.id === selectedId) ??
+    firstPage.data?.results.find((r) => r.id === selectedId) ??
     reports.find((r) => r.id === selectedId) ??
     null;
 
-  // Consecutive most-recent weeks that were reported (any status other than a miss).
+  // Consecutive most-recent weeks with a completed report. A rejected report is not complete.
   const streak = useMemo(() => {
     let n = 0;
     for (const r of reports) {
-      if (r.approval_status === "DELETED") break;
+      if (r.approval_status === "DELETED" || r.approval_status === "REJECTED") break;
       n++;
     }
     return n;
@@ -198,7 +203,7 @@ export default function MyCellPage() {
             <NextActionCard
               report={current}
               serviceDate={serviceDate}
-              loading={mine.isLoading}
+              loading={mine.isLoading && firstPage.isLoading}
             />
           )}
         </div>
@@ -299,12 +304,8 @@ export default function MyCellPage() {
               )}
             </div>
           )}
-          {mine.isLoading || pageQuery.isLoading ? (
+          {pageQuery.isLoading ? (
             <SubmissionTableSkeleton />
-          ) : mine.isError ? (
-            <div style={{ fontSize: 12.5, color: colors.red }}>
-              Could not load your report history: {mine.error.message}
-            </div>
           ) : pageQuery.isError && !pageQuery.data ? (
             <div
               style={{
@@ -508,7 +509,7 @@ function SubmissionTable({
               {r.total_offering != null ? naira.format(r.total_offering) : "—"}
             </TableCell>
             <TableCell className="text-right">
-              <StatusPill status={r.approval_status} />
+              <StatusPill status={r.approval_status} source={r.source} />
             </TableCell>
           </TableRow>
         ))}
@@ -688,7 +689,7 @@ function NextActionCard({
           Sent back
         </div>
         <div style={{ fontSize: 14, marginTop: 6, marginBottom: 10 }}>
-          {report.comment || "Your approver asked for a correction."}
+          {reportCommentText(report) || "Your approver asked for a correction."}
         </div>
         <LinkButton href="/cell/report" variant="primary">
           Edit and resubmit

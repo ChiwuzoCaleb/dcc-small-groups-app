@@ -44,10 +44,12 @@ const NAV: Record<AppArea, NavItem[]> = {
   cell: [
     { href: "/cell", label: "My cell", icon: IconDashboard },
     { href: "/cell/report", label: "Sunday report", icon: IconClipboardList },
+    { href: "/cell/profile", label: "Profile", icon: IconUsers },
   ],
   coordinator: [
     { href: "/coordinator", label: "Compliance", icon: IconChartBar },
     { href: "/coordinator/approvals", label: "Approvals", icon: IconCheck },
+    { href: "/coordinator/profile", label: "Profile", icon: IconUsers },
   ],
   msu: [
     { href: "/msu", label: "Assignments", icon: IconClipboardList },

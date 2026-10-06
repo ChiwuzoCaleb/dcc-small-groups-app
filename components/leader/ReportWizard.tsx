@@ -24,6 +24,7 @@ import { useApprovalSettings } from "@/hooks/api/approvals";
 import { ApiError } from "@/lib/api/errors";
 import { notify } from "@/lib/toast";
 import type { SundayReport } from "@/lib/api/types";
+import { reportCommentText } from "@/lib/api/reportComments";
 
 /** Whole/half-hour phrasing for the fallback-approval window ("36 hours", "1.5 hours"). */
 function formatHours(seconds: number): string {
@@ -127,12 +128,21 @@ function parseNumber(raw: string): number | null {
   return Number.isFinite(value) ? value : null;
 }
 
+/** Backend rule: total_offering must be at least NGN 100 when the meeting held. */
+const MIN_OFFERING_NGN = 100;
+const OFFERING_MIN_MESSAGE = `Total Offering must be at least NGN ${MIN_OFFERING_NGN}.`;
+
 export function ReportWizard({
   serviceDate,
   existing,
+  cellId,
+  returnTo = "/cell",
 }: {
   serviceDate: string;
   existing: SundayReport | null;
+  /** Set when a leader submits on behalf of a cell; the API records who did it. */
+  cellId?: string;
+  returnTo?: string;
 }) {
   const router = useRouter();
 
@@ -158,7 +168,7 @@ export function ReportWizard({
 
   // On a rejected report, `existing.comment` is the approver's note, not the leader's.
   const [comment, setComment] = useState<string>(
-    isResubmit ? readStoredComment(existing?.id) : (existing?.comment ?? ""),
+    isResubmit ? readStoredComment(existing?.id) : (reportCommentText(existing)),
   );
 
   /**
@@ -255,16 +265,17 @@ export function ReportWizard({
       total_offering: nextValue,
     }));
 
-    if (nextValue != null) {
-      setFieldErrors((current) => {
-        if (!current.total_offering) return current;
+    // Live feedback so the minimum is visible before the leader submits.
+    setFieldErrors((current) => {
+      const tooLow = nextValue != null && nextValue < MIN_OFFERING_NGN;
+      if (tooLow) return { ...current, total_offering: OFFERING_MIN_MESSAGE };
+      if (!current.total_offering) return current;
 
-        const next = { ...current };
-        delete next.total_offering;
+      const next = { ...current };
+      delete next.total_offering;
 
-        return next;
-      });
-    }
+      return next;
+    });
   }
 
   /**
@@ -308,8 +319,8 @@ export function ReportWizard({
      */
     const offering = values.total_offering;
 
-    if (offering == null || offering < 100) {
-      errors.total_offering = "Total Offering must be at least 100.";
+    if (offering == null || offering < MIN_OFFERING_NGN) {
+      errors.total_offering = OFFERING_MIN_MESSAGE;
 
       setFieldErrors(errors);
 
@@ -486,6 +497,7 @@ export function ReportWizard({
 
   function buildPayload() {
     const payload: Record<string, unknown> = {
+      ...(cellId ? { cell: cellId } : {}),
       service_date: serviceDate,
       meeting_held: meetingHeld,
       currency: "NGN",
@@ -556,7 +568,7 @@ export function ReportWizard({
       notify.success(
         isResubmit ? "Report resubmitted successfully" : "Report submitted successfully",
       );
-      router.push("/cell");
+      router.push(returnTo);
     } catch (err) {
       handleBackendValidationError(err);
 
@@ -769,7 +781,7 @@ export function ReportWizard({
                   color: colors.ink,
                 }}
               >
-                {existing?.comment ??
+                {reportCommentText(existing) ||
                   "Your approver sent this back for correction. Update the figures and resubmit."}
               </div>
             </Card>

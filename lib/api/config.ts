@@ -53,6 +53,8 @@ export const API_ROUTES = {
   invite: "v1/user/invite/",
   /** Finish onboarding from a magic-link token: set password + profile. */
   completeProfile: "v1/user/complete-profile/",
+  /** Resend the activation email for an account that has not been activated. */
+  resendActivationLink: "v1/user/resend-activation-link/",
   passwordReset: "v1/user/password-reset/",
   passwordResetConfirm: "v1/user/password-reset/confirm/",
 

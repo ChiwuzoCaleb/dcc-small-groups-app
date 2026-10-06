@@ -18,8 +18,10 @@ import {
   useOrgDashboard,
   useUnitDashboard,
 } from "@/hooks/api/dashboard";
+import { useRouter } from "next/navigation";
 import { ReportDetailDialog } from "@/components/leader/ReportDetailDialog";
-import { useReport, useReportsForDate, useExportReports } from "@/hooks/api/reports";
+import { withSource } from "@/components/leader/StatusPill";
+import { useReportsForDate, useExportReports } from "@/hooks/api/reports";
 import { notify } from "@/lib/toast";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useAuth } from "@/hooks/useAuth";
@@ -41,6 +43,7 @@ type DashboardRow = {
   approved: number | null;
   pending_approval: number | null;
   approvalStatus?: string | null;
+  source?: string | null;
   missing_cells_count: number | null;
   compliance_percentage: number | null;
   chronic_cells_count: number | null;
@@ -50,6 +53,7 @@ type DashboardRow = {
   isChronic: boolean;
   isCell: boolean;
   isMissing: boolean;
+  isRejected: boolean;
   hasChildren: boolean;
   node?: DashboardOrgNode;
 };
@@ -182,6 +186,16 @@ function countByApproval(node: DashboardOrgNode, level: UnitLevel, status: strin
   return total;
 }
 
+/** Compliance with rejected cells taken out: a rejected report must be resubmitted, so it is not a completed submission. */
+function adjustedCompliance(unit: DashboardOrgNode, level: UnitLevel, isCell: boolean): number | null {
+  const base = optionalNumber(unit.compliance_percentage);
+  if (base === null || isCell) return base;
+  const rejected = countByApproval(unit, level, "REJECTED");
+  const total = optionalNumber(unit.total_cells) ?? countCells(unit, level);
+  if (!rejected || !total) return base;
+  return Math.max(0, base - (rejected / total) * 100);
+}
+
 function rowFromUnit(
   unit: DashboardOrgNode,
   level: UnitLevel,
@@ -200,6 +214,8 @@ function rowFromUnit(
   const isMissing = hasSubmitted !== null
     ? !hasSubmitted
     : fromMissingList || unit.is_missing === true || unit.status === "NOT_SUBMITTED";
+  // A rejected report is not a completed submission until the leader resubmits.
+  const isRejected = isCell && !isMissing && approvalStatus === "REJECTED";
   const leaderName = typeof unit.leader_name === "string" ? unit.leader_name.trim() : "";
   const leader = leaderName
     ? leaderName
@@ -227,8 +243,9 @@ function rowFromUnit(
     approved: optionalNumber(unit.approved ?? unit.approved_count) ?? (isCell ? null : countByApproval(unit, level, "APPROVED")),
     pending_approval: optionalNumber(unit.pending_approval ?? unit.pending) ?? (!isCell ? countByApproval(unit, level, "PENDING") : null) ?? (isCell && approvalStatus ? (approvalStatus === "PENDING" ? 1 : 0) : null),
     approvalStatus,
-    missing_cells_count: optionalNumber(unit.missing_cells_count) ?? (isCell && isMissing ? 1 : null),
-    compliance_percentage: optionalNumber(unit.compliance_percentage),
+    source: optionalText(unit.source),
+    missing_cells_count: optionalNumber(unit.missing_cells_count) ?? (isCell && (isMissing || isRejected) ? 1 : null),
+    compliance_percentage: adjustedCompliance(unit, level, isCell),
     chronic_cells_count: optionalNumber(unit.chronic_cells_count ?? unit.chronic_count),
     leaderPhone: optionalText(unit.leader_phone ?? unit.phone_number ?? leaderObject?.phone_number),
     leaderEmail: optionalText(unit.leader_email ?? unit.email ?? leaderObject?.email),
@@ -236,6 +253,7 @@ function rowFromUnit(
     isChronic: isCell && chronicCellIds.has(id),
     isCell,
     isMissing,
+    isRejected,
     hasChildren: descendants.length > 0,
     node: unit,
   };
@@ -261,6 +279,7 @@ function rowsForUnit(
 }
 export default function CoordinatorPage() {
   const { user } = useAuth();
+  const router = useRouter();
   const { role, capabilities } = useRole();
   const [serviceDate, setServiceDate] = useState(defaultServiceDate);
   const [filter, setFilter] = useState<FilterKey>("ALL");
@@ -282,7 +301,7 @@ export default function CoordinatorPage() {
   const scopedDashboard = useUnitDashboard(scopeLevel, assignedId || null, serviceDate);
   const chronicCells = useChronicCells(serviceDate);
   const trend = useComplianceTrends(8);
-  const scopedReports = useReportsForDate(serviceDate, selectedCell !== null && !selectedCell.isMissing);
+  const scopedReports = useReportsForDate(serviceDate, true);
   const selectedReport = useMemo(() => {
     if (!selectedCell || selectedCell.isMissing || !scopedReports.data) return null;
     return scopedReports.data.find((report) => {
@@ -290,7 +309,6 @@ export default function CoordinatorPage() {
       return reportCellId === selectedCell.id;
     }) ?? null;
   }, [scopedReports.data, selectedCell]);
-  const reportDetail = useReport(selectedReport?.id ?? null);
   const userRegionId = asRecord(userRecord?.region)?.id;
   // Region/district leaders are scoped server-side; only a super admin must send a region.
   const regionId = typeof userRegionId === "string" && userRegionId
@@ -338,18 +356,27 @@ export default function CoordinatorPage() {
   const baseRows = rows;
   const filteredRows = useMemo(() => baseRows.filter((row) => {
     if (filter === "ALL") return true;
-    if (filter === "SUBMITTED") return row.isCell ? !row.isMissing : (row.cellCount ?? 0) > (row.missing_cells_count ?? 0);
-    if (filter === "NOT_SUBMITTED") return row.isMissing || (row.missing_cells_count ?? 0) > 0;
+    if (filter === "SUBMITTED") return row.isCell ? !row.isMissing && !row.isRejected : (row.cellCount ?? 0) > (row.missing_cells_count ?? 0);
+    if (filter === "NOT_SUBMITTED") return row.isMissing || row.isRejected || (row.missing_cells_count ?? 0) > 0;
     if (filter === "PENDING_APPROVAL") return (row.pending_approval ?? 0) > 0;
     if (filter === "CHRONIC") return row.isChronic || (row.chronic_cells_count ?? 0) > 0;
     return true;
   }), [baseRows, filter]);
 
   const scopeSummary = scopedDashboard.data;
-  const compliance = optionalNumber(scopeSummary?.compliance_percentage ?? scopeNode?.compliance_percentage);
-  const missing = scopeSummary
+  // Rejected reports are sent back for resubmission, so they do not count as submitted.
+  const rejectedCount = scopedReports.data
+    ? scopedReports.data.filter((r) => r.approval_status === "REJECTED").length
+    : scopeNode ? countByApproval(scopeNode, scopeLevel, "REJECTED") ?? 0 : 0;
+  const rawCompliance = optionalNumber(scopeSummary?.compliance_percentage ?? scopeNode?.compliance_percentage);
+  const complianceTotal = optionalNumber(scopeSummary?.total_cells ?? scopeNode?.total_cells);
+  const compliance = rawCompliance !== null && complianceTotal
+    ? Math.max(0, rawCompliance - (rejectedCount / complianceTotal) * 100)
+    : rawCompliance;
+  const missingBase = scopeSummary
     ? Math.max(0, scopeSummary.total_cells - scopeSummary.submitted_cells)
     : optionalNumber(scopeNode?.missing_cells_count);
+  const missing = missingBase === null ? null : missingBase + rejectedCount;
   const pending = optionalNumber(scopeSummary?.pending_approval) ?? (scopeNode ? countByApproval(scopeNode, currentLevel, "PENDING") : null);
   const chronic = chronicCells.data?.length ?? null;
   const tableLevel = NEXT_LEVEL[currentLevel] ?? "cell";
@@ -510,6 +537,8 @@ export default function CoordinatorPage() {
                 const complianceColor = (row.pending_approval ?? 0) > 0 ? colors.amber : pct !== null && pct >= 90 ? colors.green : pct !== null && pct >= 70 ? colors.amber : colors.red;
                 const isCellView = currentLevel === "section" && tableLevel === "cell";
                 const isPending = row.isCell && !row.isMissing && row.approvalStatus === "PENDING";
+                const isRejected = row.isRejected || (selectedCell?.id === row.id && selectedReport?.approval_status === "REJECTED");
+                const isBad = row.isMissing || isRejected;
                 return (
                   <TableRow key={row.id} tabIndex={row.hasChildren || isCellView ? 0 : undefined} onClick={() => isCellView ? setSelectedCell(row) : drillInto(row)} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") isCellView ? setSelectedCell(row) : drillInto(row); }} style={{ background: "#fff", cursor: row.hasChildren || isCellView ? "pointer" : "default" }}>
                     <TableCell style={{ paddingTop: 16, paddingBottom: 16 }}>
@@ -535,8 +564,8 @@ export default function CoordinatorPage() {
                           {row.leaderEmail ? <a href={`mailto:${row.leaderEmail}`} onClick={(event) => event.stopPropagation()}>{row.leaderEmail}</a> : "-"}
                         </TableCell>
                         <TableCell>
-                          <span style={{ fontSize: 11, fontWeight: 600, padding: "4px 8px", borderRadius: 6, background: row.isMissing ? colors.redSoft : isPending ? colors.amberSoft : colors.greenSoft, color: row.isMissing ? colors.red : isPending ? colors.amber : colors.green, whiteSpace: "nowrap" }}>
-                            {row.isMissing ? "Not submitted" : selectedCell?.id === row.id && selectedReport ? selectedReport.approval_status.replaceAll("_", " ") : row.approvalStatus ? row.approvalStatus.replaceAll("_", " ") : "Submitted"}
+                          <span style={{ fontSize: 11, fontWeight: 600, padding: "4px 8px", borderRadius: 6, background: isBad ? colors.redSoft : isPending ? colors.amberSoft : colors.greenSoft, color: isBad ? colors.red : isPending ? colors.amber : colors.green, whiteSpace: "nowrap" }}>
+                            {row.isMissing ? "Not submitted" : selectedCell?.id === row.id && selectedReport ? withSource(selectedReport.approval_status.replaceAll("_", " "), selectedReport.source ?? row.source) : row.approvalStatus ? withSource(row.approvalStatus.replaceAll("_", " "), row.source) : "Submitted"}
                           </span>
                         </TableCell>
                       </>
@@ -551,9 +580,9 @@ export default function CoordinatorPage() {
                         </TableCell>
                         <TableCell style={{ color: colors.green, fontWeight: 700, textAlign: "center" }}>{displayCount(row.approved)}</TableCell>
                         <TableCell style={{ color: colors.amber, fontWeight: 700, textAlign: "center" }}>{displayCount(row.pending_approval)}</TableCell>
-                        <TableCell style={{ color: row.isMissing ? colors.red : colors.muted, fontWeight: 700, textAlign: "center" }}>{displayCount(row.missing_cells_count)}</TableCell>
+                        <TableCell style={{ color: isBad ? colors.red : colors.muted, fontWeight: 700, textAlign: "center" }}>{displayCount(row.missing_cells_count)}</TableCell>
                         <TableCell>
-                          {row.isCell ? <span style={{ color: row.isMissing ? colors.red : isPending ? colors.amber : colors.green, fontWeight: 600 }}>{row.isMissing ? "Not submitted" : "Submitted"}</span> : pct === null ? "-" : (
+                          {row.isCell ? <span style={{ color: isBad ? colors.red : isPending ? colors.amber : colors.green, fontWeight: 600 }}>{row.isMissing ? "Not submitted" : isRejected ? "Rejected" : "Submitted"}</span> : pct === null ? "-" : (
                             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                               <span style={{ minWidth: 42, fontWeight: 700, fontSize: 13, color: complianceColor }}>{Math.round(pct)}%</span>
                               <div style={{ width: 88, height: 6, background: colors.border, borderRadius: 999, overflow: "hidden" }}>
@@ -581,13 +610,15 @@ export default function CoordinatorPage() {
         </Card>
       </div>
       <ReportDetailDialog
-        report={reportDetail.data ?? null}
+        report={selectedReport}
         open={selectedCell !== null}
-        loading={scopedReports.isLoading || (!!selectedReport && reportDetail.isLoading)}
+        loading={scopedReports.isLoading}
         cellName={selectedCell?.name}
         serviceDate={serviceDate}
         noReport={selectedCell?.isMissing ?? false}
-        error={scopedReports.isError || reportDetail.isError ? "Could not load this cell's report details." : undefined}
+        canDecide={capabilities.canApprove}
+        onStartReport={!capabilities.readOnly && selectedCell ? () => router.push(`/coordinator/report?${new URLSearchParams({ cell: selectedCell.id, name: selectedCell.name, date: serviceDate })}`) : undefined}
+        error={scopedReports.isError ? "Could not load this cell's report details." : undefined}
         onOpenChange={(open) => { if (!open) setSelectedCell(null); }}
       />
     </>

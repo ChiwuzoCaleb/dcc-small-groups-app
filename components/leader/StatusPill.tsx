@@ -8,13 +8,28 @@ const STATUS_STYLE: Record<ApprovalStatus, { label: string; bg: string; fg: stri
   DELETED: { label: "Deleted", bg: colors.chipGrey, fg: colors.muted },
 };
 
-export function StatusPill({ status }: { status: ApprovalStatus }) {
+/** "WHATSAPP" -> "WhatsApp", "WEB" -> "Web"; empty when the API sent no source. */
+export function formatSource(source?: string | null): string {
+  const v = source?.trim();
+  if (!v) return "";
+  if (v.toUpperCase() === "WHATSAPP") return "WhatsApp";
+  return v.charAt(0).toUpperCase() + v.slice(1).toLowerCase();
+}
+
+/** Appends the source to a status label, e.g. "Approved.WhatsApp"; unchanged when there is no source. */
+export function withSource(label: string, source?: string | null): string {
+  const src = formatSource(source);
+  return src ? `${label}.${src}` : label;
+}
+
+export function StatusPill({ status, source }: { status: ApprovalStatus; source?: string | null }) {
   const t = STATUS_STYLE[status];
+  const label = status === "DELETED" ? t.label : withSource(t.label, source);
   return (
     <span
       style={{ fontSize: 10.5, fontWeight: 700, padding: "3px 8px", borderRadius: 999, background: t.bg, color: t.fg }}
     >
-      {t.label}
+      {label}
     </span>
   );
 }

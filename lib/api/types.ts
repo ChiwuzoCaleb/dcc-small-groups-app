@@ -179,19 +179,10 @@ export interface ReportOrgUnit {
 }
 
 export type ReportRegion = ReportOrgUnit;
-export interface ReportDistrict extends ReportOrgUnit {
-  region?: ReportRegion | null;
-}
-export interface ReportZone extends ReportOrgUnit {
-  district?: ReportDistrict | null;
-}
-export interface ReportArea extends ReportOrgUnit {
-  zone?: ReportZone | null;
-}
-export interface ReportSection extends ReportOrgUnit {
-  area?: ReportArea | null;
-}
-
+export type ReportDistrict = ReportOrgUnit;
+export type ReportZone = ReportOrgUnit;
+export type ReportArea = ReportOrgUnit;
+export type ReportSection = ReportOrgUnit;
 /** The cell a report belongs to, with its full parent chain (Section → Area → Zone → District → Region). */
 export interface ReportCell extends ReportOrgUnit {
   section?: ReportSection | null;
@@ -208,15 +199,38 @@ export interface ReportCell extends ReportOrgUnit {
  * not actually send back, so they are optional here.
  *
  * `cell` is a UUID string on some endpoints (create / approvals queue) and the
- * full nested {@link ReportCell} on `reports/mine/`, so it's a union.
+ * full nested {@link ReportCell} on `reports/mine/`, so it's a union. On `reports/mine/`
+ * the parent chain (`section` to `region`) is returned as flat siblings of `cell`,
+ * and the notes arrive in `comments` rather than a single `comment` string.
  */
-export interface SundayReport extends Partial<SundayReportFigures> {
+/** One entry of a report's `comments` history. */
+export interface ReportComment {
+  comment: string;
+  commented_at: string;
+  commented_by: string;
+}
+
+export interface SundayReport extends Partial<Omit<SundayReportFigures, "comment">> {
   id: string;
   cell: string | ReportCell | null;
+  /** On `reports/mine/` the parent chain is flat on the report, not nested under `cell`. */
+  section?: ReportSection | null;
+  area?: ReportArea | null;
+  zone?: ReportZone | null;
+  district?: ReportDistrict | null;
+  region?: ReportRegion | null;
+  comments?: ReportComment[];
+  /** Where the report was submitted from, e.g. "WHATSAPP" or "WEB". Absent on some endpoints. */
+  source?: string | null;
+  /** @deprecated Replaced by `comments`; read via `reportCommentText`. */
+  comment?: string;
   service_date: string | null; // YYYY-MM-DD, a Sunday
   approval_status: ApprovalStatus;
   approved_by: string | null;
   approved_at: string | null;
+  /** Audit: user id (or nested user) who submitted / last edited the report. Differs from the cell leader on behalf-of submissions. */
+  created_by?: string | ReportUser | null;
+  updated_by?: string | ReportUser | null;
   date_created: string;
   last_updated: string;
   status?: RecordStatus;

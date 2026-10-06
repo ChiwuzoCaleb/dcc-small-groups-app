@@ -11,10 +11,14 @@ import {
 import { StatusPill } from "@/components/leader/StatusPill";
 import { CAPABILITIES, isRoleName } from "@/lib/auth/roles";
 import { FIGURE_LABEL, REPORT_STEPS, type FigureKey } from "@/lib/reports/fields";
-import type { ReportCell, ReportOrgUnit, ReportUser, SundayReport } from "@/lib/api/types";
+import type { ReportComment, ReportCell, ReportOrgUnit, ReportUser, SundayReport } from "@/lib/api/types";
+import { allReportComments } from "@/lib/api/reportComments";
+import { Button } from "@/components/ui/button";
+import { isLateSubmission } from "@/lib/reports/late";
+import { ReportDecisionBar } from "@/components/leader/ReportDecisionBar";
 
 function fullDate(iso?: string | null): string {
-  if (!iso) return "—";
+  if (!iso) return "â€”";
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
   return d.toLocaleDateString("en-GB", {
@@ -27,7 +31,7 @@ function fullDate(iso?: string | null): string {
 }
 
 function dateTime(iso?: string | null): string {
-  if (!iso) return "—";
+  if (!iso) return "â€”";
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
   return d.toLocaleString("en-GB", {
@@ -39,7 +43,7 @@ function dateTime(iso?: string | null): string {
   });
 }
 
-/** `currency` arrives as "NGN" on most rows but "₦" on some, so only feed real ISO codes to Intl. */
+/** `currency` arrives as "NGN" on most rows but "â‚¦" on some, so only feed real ISO codes to Intl. */
 function formatMoney(amount: number, currency?: string): string {
   if (currency && /^[A-Z]{3}$/.test(currency)) {
     try {
@@ -52,7 +56,7 @@ function formatMoney(amount: number, currency?: string): string {
 }
 
 function humanize(value?: string | null): string {
-  if (!value) return "—";
+  if (!value) return "â€”";
   const s = value.replace(/_/g, " ").toLowerCase();
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
@@ -79,6 +83,44 @@ function approverName(
   return [leader.first_name, leader.last_name].filter(Boolean).join(" ") || leader.email || null;
 }
 
+/** True when the submitter is a known user other than the cell's own leader. */
+function isOnBehalf(by: unknown, cell?: ReportCell | null): boolean {
+  const id = typeof by === "string" ? by : (by as ReportUser | null)?.id;
+  const leaderId = cell?.leader?.id;
+  return Boolean(id && leaderId && id !== leaderId);
+}
+
+/** Every comment on the report, oldest first, so send-back notes and replies read as a conversation. */
+function CommentTrail({
+  comments,
+  units,
+}: {
+  comments: ReportComment[];
+  units: (ReportOrgUnit | null | undefined)[];
+}) {
+  if (comments.length === 0) {
+    return <p className="text-sm text-muted-foreground">No comment was added.</p>;
+  }
+  return (
+    <ol className="space-y-2.5">
+      {comments.map((c, i) => {
+        const latest = i === comments.length - 1 && comments.length > 1;
+        const author = c.commented_by ? approverName(c.commented_by, units) ?? "Unknown user" : null;
+        return (
+          <li key={`${c.commented_at}-${i}`} className="rounded-lg bg-muted px-3 py-2.5">
+            <div className="mb-1 flex flex-wrap items-center gap-x-2 text-[11px] text-muted-foreground">
+              {author && <span className="font-medium text-foreground">{author}</span>}
+              {c.commented_at && <span>{dateTime(c.commented_at)}</span>}
+              {latest && <span className="rounded bg-background px-1.5 py-0.5 font-semibold uppercase tracking-wide">Latest</span>}
+            </div>
+            <p className="text-sm leading-relaxed whitespace-pre-wrap">{c.comment}</p>
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
+
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
     <section>
@@ -92,19 +134,19 @@ function Field({ label, children }: { label: string; children?: ReactNode }) {
   return (
     <div className="min-w-0">
       <dt className="text-[11px] font-medium tracking-wide text-muted-foreground uppercase">{label}</dt>
-      <dd className="mt-0.5 text-sm break-words">{children ?? "—"}</dd>
+      <dd className="mt-0.5 text-sm break-words">{children ?? "â€”"}</dd>
     </div>
   );
 }
 
 function Person({ user }: { user?: ReportUser | null }) {
-  if (!user) return <span className="text-muted-foreground">—</span>;
-  const name = [user.first_name, user.last_name].filter(Boolean).join(" ") || user.email || "—";
+  if (!user) return <span className="text-muted-foreground">â€”</span>;
+  const name = [user.first_name, user.last_name].filter(Boolean).join(" ") || user.email || "â€”";
   const role = isRoleName(user.role) ? CAPABILITIES[user.role].label : humanize(user.role);
   return (
     <div className="min-w-0 text-sm">
       <div className="font-medium">
-        {name} <span className="font-normal text-muted-foreground">· {role}</span>
+        {name} <span className="font-normal text-muted-foreground">Â· {role}</span>
       </div>
       <div className="flex flex-wrap gap-x-3 text-xs text-muted-foreground">
         {user.email && (
@@ -122,22 +164,6 @@ function Person({ user }: { user?: ReportUser | null }) {
   );
 }
 
-function OrgRow({ level, unit }: { level: string; unit?: ReportOrgUnit | null }) {
-  if (!unit) return null;
-  return (
-    <div className="grid gap-1 rounded-lg border p-3 sm:grid-cols-[110px_1fr] sm:gap-3">
-      <div className="text-[11px] font-medium tracking-wide text-muted-foreground uppercase">{level}</div>
-      <div className="min-w-0 space-y-1.5">
-        <div className="text-sm font-medium">
-          {unit.name ?? "—"}
-          {unit.code && <span className="ml-2 font-mono text-xs font-normal text-muted-foreground">{unit.code}</span>}
-        </div>
-        <Person user={unit.leader} />
-      </div>
-    </div>
-  );
-}
-
 export function ReportDetailDialog({
   report,
   onOpenChange,
@@ -148,6 +174,8 @@ export function ReportDetailDialog({
   notice,
   error,
   noReport = false,
+  canDecide = false,
+  onStartReport,
 }: {
   /** The report to show; `null` keeps the dialog closed. */
   report: SundayReport | null;
@@ -159,6 +187,10 @@ export function ReportDetailDialog({
   notice?: string;
   error?: string;
   noReport?: boolean;
+  /** Show Approve / Send back for a pending report (coordinators with approval rights). */
+  canDecide?: boolean;
+  /** When set and the cell has no report, shows a "Start Report" button to submit on its behalf. */
+  onStartReport?: () => void;
 }) {
   const dialogOpen = open ?? report !== null;
   const cell: ReportCell | null = report && typeof report.cell === "object" ? report.cell : null;
@@ -173,11 +205,9 @@ export function ReportDetailDialog({
     }))
     .filter((g) => g.entries.length > 0);
 
-  const section = cell?.section;
-  const area = section?.area;
-  const zone = area?.zone;
-  const district = zone?.district;
-  const region = district?.region;
+  const { section, area, zone, district, region } = report ?? {};
+  const commentList = allReportComments(report);
+  const units = [cell, section, area, zone, district, region];
 
   return (
     <Dialog open={dialogOpen} onOpenChange={onOpenChange}>
@@ -185,12 +215,12 @@ export function ReportDetailDialog({
         <DialogContent className="flex max-h-[90vh] flex-col gap-0 p-0 sm:max-w-2xl">
           <DialogHeader className="border-b p-5 pr-12">
             <DialogTitle className="text-base">
-              Sunday report · {fullDate(report.service_date)}
+              Sunday report Â· {fullDate(report.service_date)}
             </DialogTitle>
             <DialogDescription className="flex flex-wrap items-center gap-x-2 gap-y-1">
               <span>{cell?.name ?? "Your cell"}</span>
               {cell?.code && <span className="font-mono text-xs">{cell.code}</span>}
-              <StatusPill status={report.approval_status} />
+              <StatusPill status={report.approval_status} source={report.source} />
             </DialogDescription>
           </DialogHeader>
 
@@ -199,14 +229,8 @@ export function ReportDetailDialog({
               <p className="rounded-md border border-border bg-muted/40 px-4 py-3 text-sm leading-relaxed text-foreground">
                 No meeting was held on this service date.
               </p>
-              <Section title="Cell Leader's comment">
-                {report.comment ? (
-                  <p className="rounded-lg bg-muted px-3 py-2.5 text-sm leading-relaxed whitespace-pre-wrap">
-                    {report.comment}
-                  </p>
-                ) : (
-                  <p className="text-sm text-muted-foreground">No comment was added.</p>
-                )}
+              <Section title={commentList.length > 1 ? `Comments (${commentList.length})` : "Comment"}>
+                <CommentTrail comments={commentList} units={units} />
               </Section>
             </div>
           ) : (
@@ -216,25 +240,26 @@ export function ReportDetailDialog({
                 <dl className="grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-3">
                   <Field label="Service date">{fullDate(report.service_date)}</Field>
                   <Field label="Meeting held">
-                    {report.meeting_held === undefined ? "—" : report.meeting_held ? "Yes" : "No"}
+                    {report.meeting_held === undefined ? "â€”" : report.meeting_held ? "Yes" : "No"}
                   </Field>
                   <Field label="Status">{humanize(report.approval_status)}</Field>
                   <Field label="Submitted">{dateTime(report.date_created)}</Field>
                   <Field label="Last updated">{dateTime(report.last_updated)}</Field>
-                  <Field label="Approved by">{approverName(report.approved_by, [cell, section, area, zone, district, region])}</Field>
+                  {report.created_by && (
+                    <Field label="Submitted by">
+                      {approverName(report.created_by, units) ?? "Unknown user"}
+                      {isOnBehalf(report.created_by, cell) && <span className="text-muted-foreground"> Â· on behalf of the cell leader</span>}
+                    </Field>
+                  )}
+                  {report.updated_by && <Field label="Last updated by">{approverName(report.updated_by, units) ?? "Unknown user"}</Field>}
+                  <Field label="Approved by">{approverName(report.approved_by, units)}</Field>
                   <Field label="Approved at">{dateTime(report.approved_at)}</Field>
                   {cellRef && <Field label="Cell">{cellRef}</Field>}
                 </dl>
               </Section>
 
-              <Section title="Comment">
-                {report.comment ? (
-                  <p className="rounded-lg bg-muted px-3 py-2.5 text-sm leading-relaxed whitespace-pre-wrap">
-                    {report.comment}
-                  </p>
-                ) : (
-                  <p className="text-sm text-muted-foreground">No comment was added.</p>
-                )}
+              <Section title={commentList.length > 1 ? `Comments (${commentList.length})` : "Comment"}>
+                <CommentTrail comments={commentList} units={units} />
               </Section>
 
               {figureGroups.length === 0 ? (
@@ -281,16 +306,8 @@ export function ReportDetailDialog({
                 </Section>
               )}
 
-              {(section || area || zone || district || region) && (
-                <Section title="Hierarchy">
-                  <div className="space-y-2">
-                    <OrgRow level="Section" unit={section} />
-                    <OrgRow level="Area" unit={area} />
-                    <OrgRow level="Zone" unit={zone} />
-                    <OrgRow level="District" unit={district} />
-                    <OrgRow level="Region" unit={region} />
-                  </div>
-                </Section>
+              {canDecide && report.approval_status === "PENDING" && (
+                <ReportDecisionBar reportId={report.id} allowSendBack={!isLateSubmission(report)} onDone={() => onOpenChange(false)} />
               )}
             </div>
           )}
@@ -299,17 +316,24 @@ export function ReportDetailDialog({
         <DialogContent className="flex max-h-[90vh] flex-col gap-0 p-0 sm:max-w-lg">
           <DialogHeader className="border-b p-5 pr-12">
             <DialogTitle className="text-base">Cell report</DialogTitle>
-            <DialogDescription>{cellName ?? "Selected cell"} · {fullDate(serviceDate)}</DialogDescription>
+            <DialogDescription>{cellName ?? "Selected cell"} Â· {fullDate(serviceDate)}</DialogDescription>
           </DialogHeader>
           <div className="p-5">
             {loading ? (
-              <p className="text-sm text-muted-foreground">Loading report details…</p>
+              <p className="text-sm text-muted-foreground">Loading report detailsâ€¦</p>
             ) : error ? (
               <p className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">{error}</p>
             ) : noReport ? (
-              <p className="rounded-md border border-border bg-muted/40 px-4 py-3 text-sm leading-relaxed text-foreground">
-                This cell has not submitted a report for the selected week.
-              </p>
+              <>
+                <p className="rounded-md border border-border bg-muted/40 px-4 py-3 text-sm leading-relaxed text-foreground">
+                  This cell has not submitted a report for the selected week.
+                </p>
+                {onStartReport && (
+                  <Button type="button" className="mt-4" onClick={onStartReport}>
+                    Start Report
+                  </Button>
+                )}
+              </>
             ) : (
               <p className="text-sm leading-relaxed text-muted-foreground">
                 No report details are available for this cell and selected week.

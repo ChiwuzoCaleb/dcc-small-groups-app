@@ -7,7 +7,7 @@ import { HISTORY_BASE, LEADER_TREND, TREND_DATES } from "@/lib/data";
 
 const STATUS_STYLE: Record<string, { bg: string; fg: string }> = {
   Approved: { bg: colors.greenSoft, fg: colors.green },
-  Rejected: { bg: colors.chipGrey, fg: colors.muted },
+  Rejected: { bg: colors.redSoft, fg: colors.red },
   "Pending Approval": { bg: colors.amberSoft, fg: colors.amber },
   Missing: { bg: colors.redSoft, fg: colors.red },
 };

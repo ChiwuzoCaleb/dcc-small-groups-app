@@ -6,6 +6,7 @@ import { colors } from "@/lib/tokens";
 import { TextInput, Button } from "@/components/ui";
 import { httpRequest } from "@/lib/api/http";
 import { ApiError } from "@/lib/api/errors";
+import { notify } from "@/lib/toast";
 
 export function ActivateWizard() {
   const router = useRouter();
@@ -34,24 +35,24 @@ export function ActivateWizard() {
     }
     setPending(true);
     try {
-      await httpRequest("/api/auth/complete-profile", {
+      const res = await httpRequest<{ detail?: string } | null>("/api/auth/complete-profile", {
         method: "POST",
         body: { token, password, password_confirmation: confirmPassword },
         fetchOptions: { credentials: "same-origin" },
       });
       setDone(true);
+      notify.success(res?.detail ?? "Account activated. You can now sign in.");
       setTimeout(() => router.replace("/sign-in"), 2500);
     } catch (err) {
-      if (err instanceof ApiError) {
-        setError(
-          err.fieldError("password") ??
+      const message =
+        err instanceof ApiError
+          ? (err.fieldError("password") ??
             err.fieldError("token") ??
             err.fieldError("password_confirmation") ??
-            err.message,
-        );
-      } else {
-        setError("Could not activate your account. Please try again.");
-      }
+            err.message)
+          : "Could not activate your account. Please try again.";
+      setError(message);
+      notify.error(message);
       setPending(false);
     }
   }

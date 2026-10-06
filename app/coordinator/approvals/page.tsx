@@ -1,18 +1,21 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { PageHeader, Card, Button, TextArea } from "@/components/ui";
+import { PageHeader, Card, Button } from "@/components/ui";
 import { Skeleton } from "@/components/ui/skeleton";
 import { colors, mono } from "@/lib/tokens";
 import { formatServiceDate } from "@/lib/dates";
 import { REPORT_STEPS, FIGURE_LABEL, type FigureKey } from "@/lib/reports/fields";
 import { useApprovalsQueue, useApprovalSettings, useUpdateApprovalSettings } from "@/hooks/api/approvals";
 import { useDashboardApprovals } from "@/hooks/api/dashboard";
-import { useApproveReport, useRejectReport } from "@/hooks/api/reports";
+import { useApproveReport } from "@/hooks/api/reports";
 import { useRole } from "@/hooks/useRole";
 import { notify } from "@/lib/toast";
 import type { ApprovalWaitItem, ReportCell, SundayReport } from "@/lib/api/types";
 import { ErrorCard, SectionCard, formatHours } from "@/components/coordinator/kit";
+import { reportCommentText } from "@/lib/api/reportComments";
+import { isLateSubmission } from "@/lib/reports/late";
+import { ReportDecisionBar } from "@/components/leader/ReportDecisionBar";
 
 /** `report.cell` is a nested object on some endpoints, a bare UUID on others. */
 function cellOf(report: SundayReport): ReportCell | null {
@@ -256,13 +259,6 @@ function ReportDetail({
   canApprove: boolean;
   loading: boolean;
 }) {
-  const approve = useApproveReport();
-  const reject = useRejectReport();
-  // Component is remounted per report via `key`, so this state is fresh each time.
-  const [mode, setMode] = useState<"idle" | "reject">("idle");
-  const [comment, setComment] = useState("");
-  const busy = approve.isPending || reject.isPending;
-
   if (loading) {
     return (
       <Card style={{ padding: 22 }}>
@@ -279,30 +275,6 @@ function ReportDetail({
         <div style={{ fontSize: 13, color: colors.faint }}>Select a report from the queue.</div>
       </Card>
     );
-  }
-
-  async function onApprove() {
-    try {
-      await approve.mutateAsync({ id: report!.id, comment: comment.trim() || undefined });
-      notify.success("Report approved");
-    } catch (err) {
-      notify.error(err, "Could not approve the report");
-    }
-  }
-
-  async function onReject() {
-    if (!comment.trim()) {
-      notify.error("Add a note so the Cell Leader knows what to fix");
-      return;
-    }
-    try {
-      await reject.mutateAsync({ id: report!.id, comment: comment.trim() });
-      notify.success("Report sent back");
-      setMode("idle");
-      setComment("");
-    } catch (err) {
-      notify.error(err, "Could not send the report back");
-    }
   }
 
   const cell = cellOf(report);
@@ -336,7 +308,7 @@ function ReportDetail({
       </div>
 
       <div style={{ padding: 22, display: "flex", flexDirection: "column", gap: 18 }}>
-        {report.comment && (
+        {reportCommentText(report) && (
           <div>
             <div
               style={{
@@ -360,7 +332,7 @@ function ReportDetail({
                 lineHeight: 1.5,
               }}
             >
-              “{report.comment}”
+              “{reportCommentText(report)}”
             </div>
           </div>
         )}
@@ -410,46 +382,7 @@ function ReportDetail({
           </div>
         )}
 
-        {canApprove && (
-          <div style={{ borderTop: `1px solid ${colors.hairline}`, paddingTop: 16 }}>
-            {mode === "reject" ? (
-              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                <TextArea
-                  value={comment}
-                  onChange={setComment}
-                  placeholder="What does the Cell Leader need to correct?"
-                  minHeight={90}
-                />
-                <div style={{ display: "flex", gap: 8 }}>
-                  <Button variant="primary" onClick={onReject} disabled={busy}>
-                    {reject.isPending ? "Sending…" : "Send back"}
-                  </Button>
-                  <Button variant="secondary" onClick={() => setMode("idle")} disabled={busy}>
-                    Cancel
-                  </Button>
-                </div>
-              </div>
-            ) : (
-              <div style={{ display: "flex", gap: 14, alignItems: "center", flexWrap: "wrap" }}>
-                <Button variant="primary" onClick={onApprove} disabled={busy}>
-                  {approve.isPending ? "Approving…" : "Approve"}
-                </Button>
-                <Button variant="danger-outline" onClick={() => setMode("reject")} disabled={busy}>
-                  Send back
-                </Button>
-                {/* Not wired up — no messaging endpoint exists yet. Shown, not hidden, so the
-                    intended feature set is visible; disabled rather than silently omitted. */}
-                <span
-                  aria-disabled="true"
-                  title="Not available yet — there's no messaging endpoint."
-                  style={{ fontSize: 13, color: colors.faint2, cursor: "not-allowed" }}
-                >
-                  Message leader
-                </span>
-              </div>
-            )}
-          </div>
-        )}
+        {canApprove && <ReportDecisionBar reportId={report.id} allowSendBack={!isLateSubmission(report)} />}
       </div>
     </Card>
   );
