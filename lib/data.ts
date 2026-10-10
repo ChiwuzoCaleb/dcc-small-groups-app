@@ -86,7 +86,7 @@ export const EXPORT_SET_DEFS: { label: string; sub: string }[] = [
 ];
 
 export const EXPORT_RECENT = [
-  { name: "Alimosho Region · compliance · Aug 2026", meta: "Generated 24 Aug, 6:10am · 3,214 rows", kind: "CSV" },
+  { name: "Region 7 · compliance · Aug 2026", meta: "Generated 24 Aug, 6:10am · 3,214 rows", kind: "CSV" },
   { name: "Ikotun Zone · report figures · Q3", meta: "Generated 21 Aug, 4:52pm · 9,880 rows", kind: "CSV" },
   { name: "Board summary · July 2026", meta: "Generated 01 Aug, 7:00am · 12 pages", kind: "PDF" },
   { name: "Chronic non-reporters · Aug 2026", meta: "Generated 24 Aug, 6:10am · 41 rows", kind: "CSV" },

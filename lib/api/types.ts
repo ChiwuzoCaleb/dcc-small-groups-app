@@ -264,6 +264,32 @@ export interface Paginated<T> {
 }
 
 // ---------------------------------------------------------------------------
+// Notifications
+// ---------------------------------------------------------------------------
+
+/** One row from `GET /api/v1/notifications/`. */
+export interface AppNotification {
+  id: string;
+  date_created: string;
+  title: string;
+  message: string;
+  read: boolean;
+  delivered: boolean;
+}
+
+/**
+ * The `data` payload of `GET /api/v1/notifications/` once unwrapped from its
+ * `{ message, data }` envelope. Paginated, but with its own field names
+ * instead of DRF's `count` / `next` / `previous`.
+ */
+export interface NotificationsPage {
+  results: AppNotification[];
+  page: number;
+  total_pages: number;
+  total_items: number;
+}
+
+// ---------------------------------------------------------------------------
 // Roles (list-only in the current API)
 // ---------------------------------------------------------------------------
 

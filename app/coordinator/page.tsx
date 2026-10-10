@@ -417,7 +417,7 @@ export default function CoordinatorPage() {
             {(role === "ZONE_LEADER" || role === "DISTRICT_LEADER" || role === "REGION_LEADER") && (
               <>
               <Button
-                variant="secondary"
+                variant="primary"
                 padding="8px 12px"
                 fontSize={12.5}
                 onClick={() => setConfirmExport(true)}
@@ -617,7 +617,7 @@ export default function CoordinatorPage() {
         serviceDate={serviceDate}
         noReport={selectedCell?.isMissing ?? false}
         canDecide={capabilities.canApprove}
-        onStartReport={!capabilities.readOnly && selectedCell ? () => router.push(`/coordinator/report?${new URLSearchParams({ cell: selectedCell.id, name: selectedCell.name, date: serviceDate })}`) : undefined}
+        onStartReport={!capabilities.readOnly && selectedCell ? () => router.push(`/coordinator/report?${new URLSearchParams({ cell: selectedCell.id, name: selectedCell.name, leader: selectedCell.leader ?? "", date: serviceDate })}`) : undefined}
         error={scopedReports.isError ? "Could not load this cell's report details." : undefined}
         onOpenChange={(open) => { if (!open) setSelectedCell(null); }}
       />

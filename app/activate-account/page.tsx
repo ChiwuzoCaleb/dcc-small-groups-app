@@ -5,7 +5,7 @@ import { ActivateWizard } from "@/components/auth/ActivateWizard";
 export default function ActivateAccountPage() {
   return (
     <AuthShell
-      subtitle="Alimosho Region"
+      subtitle="Region 7"
       roleLabel="Activation"
       headline="Your account already exists — this just turns it on."
       blurb="Accounts are created by your coordinator's hierarchy upload. Choose a password from your invitation link and you're ready to sign in."

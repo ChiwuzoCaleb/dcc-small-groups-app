@@ -18,7 +18,7 @@ const plexMono = IBM_Plex_Mono({
 
 export const metadata: Metadata = {
   title: "DCC Small Groups",
-  description: "Daystar Christian Centre · Alimosho Region small group management",
+  description: "Daystar Christian Centre · Small group management",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

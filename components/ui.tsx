@@ -4,6 +4,7 @@ import { CSSProperties, ReactNode, useState } from "react";
 import Link from "next/link";
 import { colors } from "@/lib/tokens";
 import { SidebarTrigger } from "@/components/ui/sidebar";
+import { NotificationBell } from "@/components/shell/NotificationBell";
 
 export function TextInput({
   value,
@@ -348,7 +349,7 @@ export function PageHeader({
           style={{
             display: "flex",
             justifyContent: "space-between",
-            alignItems: "flex-start",
+            alignItems: "center",
             gap: 20,
             flexWrap: "wrap",
             flex: 1,
@@ -362,6 +363,7 @@ export function PageHeader({
           </div>
           {right && <div style={{ display: "flex", gap: 9, alignItems: "center", flexWrap: "wrap", minWidth: 0 }}>{right}</div>}
         </div>
+        <NotificationBell />
       </div>
     </div>
   );

@@ -81,7 +81,7 @@ function buildTree(): TreeNode {
     return node;
   };
 
-  const root = mk("Region", "Alimosho Region", 0);
+  const root = mk("Region", "Region 7", 0);
 
   const agg = (n: TreeNode): TreeNode => {
     if (!n.children) {

@@ -84,4 +84,9 @@ export const API_ROUTES = {
 
   // --- roles (read-only in the current API) ------------------------
   roles: "v1/roles/",
+
+  // --- notifications --------------------------------------------------
+  notifications: "v1/notifications/",
+  markNotificationsRead: "v1/mark-as-read",
+  markAllNotificationsRead: "v1/mark-all-as-read",
 } as const;

@@ -80,6 +80,10 @@ export const queryKeys = {
     all: ["roles"] as const,
     list: (params?: QueryParams) => ["roles", "list", params ?? {}] as const,
   },
+  notifications: {
+    all: ["notifications"] as const,
+    list: (params?: QueryParams) => ["notifications", "list", params ?? {}] as const,
+  },
 } as const;
 
 // ---------------------------------------------------------------------------

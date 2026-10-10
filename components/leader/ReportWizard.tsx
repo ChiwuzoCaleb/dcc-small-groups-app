@@ -594,8 +594,8 @@ export function ReportWizard({
           style={{
             display: "flex",
             alignItems: "center",
-            justifyContent: "space-between",
-            gap: 12,
+            justifyContent: "flex-start",
+            gap: 14,
             flexWrap: "wrap",
           }}
         >

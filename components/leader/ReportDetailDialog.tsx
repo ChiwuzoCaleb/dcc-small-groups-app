@@ -146,7 +146,7 @@ function Person({ user }: { user?: ReportUser | null }) {
   return (
     <div className="min-w-0 text-sm">
       <div className="font-medium">
-        {name} <span className="font-normal text-muted-foreground">Â· {role}</span>
+        {name} <span className="font-normal text-muted-foreground">· {role}</span>
       </div>
       <div className="flex flex-wrap gap-x-3 text-xs text-muted-foreground">
         {user.email && (
@@ -215,7 +215,7 @@ export function ReportDetailDialog({
         <DialogContent className="flex max-h-[90vh] flex-col gap-0 p-0 sm:max-w-2xl">
           <DialogHeader className="border-b p-5 pr-12">
             <DialogTitle className="text-base">
-              Sunday report Â· {fullDate(report.service_date)}
+              Sunday report · {fullDate(report.service_date)}
             </DialogTitle>
             <DialogDescription className="flex flex-wrap items-center gap-x-2 gap-y-1">
               <span>{cell?.name ?? "Your cell"}</span>
@@ -248,7 +248,7 @@ export function ReportDetailDialog({
                   {report.created_by && (
                     <Field label="Submitted by">
                       {approverName(report.created_by, units) ?? "Unknown user"}
-                      {isOnBehalf(report.created_by, cell) && <span className="text-muted-foreground"> Â· on behalf of the cell leader</span>}
+                      {isOnBehalf(report.created_by, cell) && <span className="text-muted-foreground"> · on behalf of the cell leader</span>}
                     </Field>
                   )}
                   {report.updated_by && <Field label="Last updated by">{approverName(report.updated_by, units) ?? "Unknown user"}</Field>}
@@ -316,7 +316,7 @@ export function ReportDetailDialog({
         <DialogContent className="flex max-h-[90vh] flex-col gap-0 p-0 sm:max-w-lg">
           <DialogHeader className="border-b p-5 pr-12">
             <DialogTitle className="text-base">Cell report</DialogTitle>
-            <DialogDescription>{cellName ?? "Selected cell"} Â· {fullDate(serviceDate)}</DialogDescription>
+            <DialogDescription>{cellName ?? "Selected cell"} · {fullDate(serviceDate)}</DialogDescription>
           </DialogHeader>
           <div className="p-5">
             {loading ? (

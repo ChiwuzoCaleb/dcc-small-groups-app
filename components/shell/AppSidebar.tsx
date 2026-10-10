@@ -42,13 +42,13 @@ interface NavItem {
 
 const NAV: Record<AppArea, NavItem[]> = {
   cell: [
-    { href: "/cell", label: "My cell", icon: IconDashboard },
-    { href: "/cell/report", label: "Sunday report", icon: IconClipboardList },
+    { href: "/cell", label: "Dashboard", icon: IconDashboard },
+    { href: "/cell/report", label: "Submit Sunday Report", icon: IconClipboardList },
     { href: "/cell/profile", label: "Profile", icon: IconUsers },
   ],
   coordinator: [
-    { href: "/coordinator", label: "Compliance", icon: IconChartBar },
-    { href: "/coordinator/approvals", label: "Approvals", icon: IconCheck },
+    { href: "/coordinator", label: "Compliance Dashboard", icon: IconChartBar },
+    { href: "/coordinator/approvals", label: "Approve Sunday Reports", icon: IconCheck },
     { href: "/coordinator/profile", label: "Profile", icon: IconUsers },
   ],
   msu: [
@@ -116,7 +116,7 @@ export function AppSidebar({
               <Link href={AREA_ROOTS[area]}>
                 <div className="relative size-7 shrink-0 overflow-hidden rounded-md border border-border bg-white">
                   <Image
-                    src="/assets/daystar-logo.jpeg"
+                    src="/assets/daystar-icon.png"
                     alt=""
                     fill
                     className="object-cover"
