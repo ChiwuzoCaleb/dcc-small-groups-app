@@ -118,7 +118,7 @@ export function useReport(id: string | null) {
   );
 }
 
-/** Create this Sunday's report for the authenticated Cell Leader's cell. */
+/** Create a report for the specified cell. */
 export function useCreateReport() {
   return useApiMutation<SundayReport, CreateReportInput>(API_ROUTES.reports, {
     method: "POST",

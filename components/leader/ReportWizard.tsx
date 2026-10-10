@@ -23,7 +23,11 @@ import { useCreateReport, useUpdateReport } from "@/hooks/api/reports";
 import { useApprovalSettings } from "@/hooks/api/approvals";
 import { ApiError } from "@/lib/api/errors";
 import { notify } from "@/lib/toast";
-import type { SundayReport } from "@/lib/api/types";
+import type {
+  CreateReportInput,
+  SundayReport,
+  SundayReportFigures,
+} from "@/lib/api/types";
 import { reportCommentText } from "@/lib/api/reportComments";
 
 /** Whole/half-hour phrasing for the fallback-approval window ("36 hours", "1.5 hours"). */
@@ -240,7 +244,12 @@ export function ReportWizard({
       [key]: nextValue,
     }));
 
-    if (nextValue != null) {
+    const isValidValue =
+      key === "members_present"
+        ? nextValue != null && nextValue > 0
+        : nextValue != null;
+
+    if (isValidValue) {
       setFieldErrors((current) => {
         if (!current[key]) return current;
 
@@ -281,13 +290,16 @@ export function ReportWizard({
   /**
    * Find the first field that fails client-side validation.
    *
-   * IMPORTANT:
-   * 0 is valid for numeric report fields.
+   * Most numeric fields accept 0, but Members Present and Total Offering
+   * have stricter minimums.
    *
-   * The only special numeric rule currently enforced here is:
-   * Members Present must be greater than 0 when the meeting held.
+   * The special numeric rules are:
+   * - Members Present must be greater than 0.
+   * - Total Offering must be at least NGN 100.
+   *
+   * When a step index is provided, only validate that step's fields.
    */
-  function validateRequiredFields(): FigureKey | null {
+  function validateRequiredFields(stepIndex?: number): FigureKey | null {
     if (!meetingHeld) {
       setFieldErrors({});
       return null;
@@ -302,15 +314,11 @@ export function ReportWizard({
     const membersPresent = values.members_present;
 
     if (
-      membersPresent == null ||
-      membersPresent <= 0
+      (stepIndex == null || stepIndex === 0) &&
+      (membersPresent == null || membersPresent <= 0)
     ) {
       errors.members_present =
         "Members Present must be greater than 0.";
-
-      setFieldErrors(errors);
-
-      return "members_present";
     }
 
     /**
@@ -319,24 +327,17 @@ export function ReportWizard({
      */
     const offering = values.total_offering;
 
-    if (offering == null || offering < MIN_OFFERING_NGN) {
+    if (
+      (stepIndex == null || stepIndex === 1) &&
+      (offering == null || offering < MIN_OFFERING_NGN)
+    ) {
       errors.total_offering = OFFERING_MIN_MESSAGE;
-
-      setFieldErrors(errors);
-
-      return "total_offering";
     }
 
-    /**
-     * All other numeric fields can legitimately be 0.
-     *
-     * Therefore, we do NOT treat 0 as missing.
-     *
-     * This also means that a newly opened report can safely
-     * submit all the +/- fields with their default value of 0.
-     */
-    setFieldErrors({});
+    setFieldErrors(errors);
 
+    if (errors.members_present) return "members_present";
+    if (errors.total_offering) return "total_offering";
     return null;
   }
 
@@ -367,6 +368,27 @@ export function ReportWizard({
 
       inputElement?.focus();
     }, 50);
+  }
+
+  function goToStep(targetStep: number) {
+    if (targetStep > step && meetingHeld) {
+      for (let stepIndex = 0; stepIndex < targetStep; stepIndex += 1) {
+        const invalidField = validateRequiredFields(stepIndex);
+
+        if (!invalidField) continue;
+
+        const fieldLabel =
+          REPORT_STEPS.flatMap((reportStep) => reportStep.fields).find(
+            (field) => field.key === invalidField,
+          )?.label ?? invalidField;
+
+        showToast(`Please check "${fieldLabel}".`);
+        goToField(invalidField);
+        return;
+      }
+    }
+
+    setStep(targetStep);
   }
 
   /**
@@ -495,9 +517,12 @@ export function ReportWizard({
     }
   }
 
-  function buildPayload() {
-    const payload: Record<string, unknown> = {
-      ...(cellId ? { cell: cellId } : {}),
+  function buildPayload(): Partial<SundayReportFigures> & {
+    service_date: string;
+  } {
+    const payload: Partial<SundayReportFigures> & {
+      service_date: string;
+    } = {
       service_date: serviceDate,
       meeting_held: meetingHeld,
       currency: "NGN",
@@ -558,10 +583,18 @@ export function ReportWizard({
 
     try {
       if (isResubmit && existing) {
-        await updateReport.mutateAsync(payload as never);
+        await updateReport.mutateAsync(payload);
         storeComment(existing.id, comment.trim());
       } else {
-        const created = await createReport.mutateAsync(payload as never);
+        if (!cellId) {
+          notify.error(
+            "Could not identify your cell for this report. Refresh the page and try again.",
+          );
+          return;
+        }
+
+        const createPayload: CreateReportInput = { ...payload, cell: cellId };
+        const created = await createReport.mutateAsync(createPayload);
         storeComment(created?.id, comment.trim());
       }
 
@@ -699,7 +732,7 @@ export function ReportWizard({
                 className={index === step ? "dcc-step-active" : undefined}
                 aria-label={item.category}
                 aria-current={index === step ? "step" : undefined}
-                onClick={() => setStep(index)}
+                onClick={() => goToStep(index)}
                 style={{
                   textAlign: "left",
                   border: "none",
@@ -1153,14 +1186,7 @@ export function ReportWizard({
                 REPORT_STEPS.length - 1 ? (
                   <Button
                     variant="dark"
-                    onClick={() =>
-                      setStep((value) =>
-                        Math.min(
-                          REPORT_STEPS.length - 1,
-                          value + 1,
-                        ),
-                      )
-                    }
+                    onClick={() => goToStep(step + 1)}
                   >
                     Next
                   </Button>

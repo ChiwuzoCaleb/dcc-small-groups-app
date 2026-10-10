@@ -32,14 +32,27 @@ export default function ReportPage() {
     () => serviceDate ? (mine.data ?? []).find((r) => r.service_date === serviceDate) ?? null : null,
     [mine.data, serviceDate],
   );
-  const cell = useMemo(() => {
-    const fromUser = cellFrom(user);
-    if (fromUser.code) return fromUser;
-    for (const r of mine.data ?? []) {
-      if (r.cell && typeof r.cell === "object" && r.cell.code) return { ...fromUser, code: r.cell.code };
-    }
-    return fromUser;
-  }, [user, mine.data]);
+  const profileCell = useMemo(() => cellFrom(user), [user]);
+  const reportedCell = (mine.data ?? []).find(
+    (report) =>
+      report.cell &&
+      typeof report.cell === "object" &&
+      (report.cell.code || report.cell.id),
+  )?.cell;
+  const reportCellId =
+    reportedCell && typeof reportedCell === "object"
+      ? reportedCell.id
+      : null;
+  const cell = {
+    ...profileCell,
+    code:
+      profileCell.code ??
+      (reportedCell && typeof reportedCell === "object"
+        ? reportedCell.code ?? null
+        : null),
+    id: profileCell.id ?? reportCellId,
+  };
+  const cellId = cell.id ?? undefined;
   const cellLabel = cell.code ?? cell.name;
   return (
     <>
@@ -67,7 +80,12 @@ export default function ReportPage() {
           <div className="dcc-page" style={{ padding: "0 28px 12px" }}>
             <Button type="button" variant="outline" onClick={() => setServiceDate(null)}>Change date</Button>
           </div>
-          <ReportWizard key={serviceDate} serviceDate={serviceDate} existing={existing} />
+          <ReportWizard
+            key={serviceDate}
+            serviceDate={serviceDate}
+            existing={existing}
+            cellId={cellId}
+          />
         </>
       )}
     </>

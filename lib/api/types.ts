@@ -238,8 +238,8 @@ export interface SundayReport extends Partial<Omit<SundayReportFigures, "comment
   meta?: unknown;
 }
 
-/** Body for `POST /api/v1/reports/` — the cell is inferred from the authenticated Cell Leader. */
-export type CreateReportInput = { service_date: string } & Partial<SundayReportFigures>;
+/** Body for `POST /api/v1/reports/` — cell is required for both self and on-behalf submissions. */
+export type CreateReportInput = { cell: string; service_date: string } & Partial<SundayReportFigures>;
 
 /** Body for `PATCH /api/v1/reports/{id}/` — allowed only while `approval_status` is REJECTED. */
 export type UpdateReportInput = Partial<SundayReportFigures> & { service_date?: string };
