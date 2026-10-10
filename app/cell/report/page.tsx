@@ -39,9 +39,9 @@ export default function ReportPage() {
       typeof report.cell === "object" &&
       (report.cell.code || report.cell.id),
   )?.cell;
-  const reportCellId =
+  const reportCell =
     reportedCell && typeof reportedCell === "object"
-      ? reportedCell.id
+      ? reportedCell
       : null;
   const cell = {
     ...profileCell,
@@ -50,9 +50,9 @@ export default function ReportPage() {
       (reportedCell && typeof reportedCell === "object"
         ? reportedCell.code ?? null
         : null),
-    id: profileCell.id ?? reportCellId,
+    id: profileCell.id ?? reportCell?.id ?? null,
   };
-  const cellId = cell.id ?? undefined;
+  const cellCode = cell.code ?? undefined;
   const cellLabel = cell.code ?? cell.name;
   return (
     <>
@@ -84,7 +84,7 @@ export default function ReportPage() {
             key={serviceDate}
             serviceDate={serviceDate}
             existing={existing}
-            cellId={cellId}
+            cellCode={cellCode}
           />
         </>
       )}

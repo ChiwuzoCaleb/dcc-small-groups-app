@@ -617,7 +617,7 @@ export default function CoordinatorPage() {
         serviceDate={serviceDate}
         noReport={selectedCell?.isMissing ?? false}
         canDecide={capabilities.canApprove}
-        onStartReport={!capabilities.readOnly && selectedCell ? () => router.push(`/coordinator/report?${new URLSearchParams({ cell: selectedCell.id, name: selectedCell.name, leader: selectedCell.leader ?? "", date: serviceDate })}`) : undefined}
+        onStartReport={!capabilities.readOnly && selectedCell ? () => router.push(`/coordinator/report?${new URLSearchParams({ cell: selectedCell.id, cell_code: selectedCell.code ?? "", name: selectedCell.name, leader: selectedCell.leader ?? "", date: serviceDate })}`) : undefined}
         error={scopedReports.isError ? "Could not load this cell's report details." : undefined}
         onOpenChange={(open) => { if (!open) setSelectedCell(null); }}
       />

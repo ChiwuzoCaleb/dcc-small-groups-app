@@ -18,7 +18,7 @@ import { isLateSubmission } from "@/lib/reports/late";
 import { ReportDecisionBar } from "@/components/leader/ReportDecisionBar";
 
 function fullDate(iso?: string | null): string {
-  if (!iso) return "â€”";
+  if (!iso) return "—";
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
   return d.toLocaleDateString("en-GB", {
@@ -31,7 +31,7 @@ function fullDate(iso?: string | null): string {
 }
 
 function dateTime(iso?: string | null): string {
-  if (!iso) return "â€”";
+  if (!iso) return "—";
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
   return d.toLocaleString("en-GB", {
@@ -43,7 +43,7 @@ function dateTime(iso?: string | null): string {
   });
 }
 
-/** `currency` arrives as "NGN" on most rows but "â‚¦" on some, so only feed real ISO codes to Intl. */
+/** `currency` arrives as "NGN" on most rows but "₦" on some, so only feed real ISO codes to Intl. */
 function formatMoney(amount: number, currency?: string): string {
   if (currency && /^[A-Z]{3}$/.test(currency)) {
     try {
@@ -56,7 +56,7 @@ function formatMoney(amount: number, currency?: string): string {
 }
 
 function humanize(value?: string | null): string {
-  if (!value) return "â€”";
+  if (!value) return "—";
   const s = value.replace(/_/g, " ").toLowerCase();
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
@@ -134,14 +134,14 @@ function Field({ label, children }: { label: string; children?: ReactNode }) {
   return (
     <div className="min-w-0">
       <dt className="text-[11px] font-medium tracking-wide text-muted-foreground uppercase">{label}</dt>
-      <dd className="mt-0.5 text-sm break-words">{children ?? "â€”"}</dd>
+      <dd className="mt-0.5 text-sm break-words">{children ?? "—"}</dd>
     </div>
   );
 }
 
 function Person({ user }: { user?: ReportUser | null }) {
-  if (!user) return <span className="text-muted-foreground">â€”</span>;
-  const name = [user.first_name, user.last_name].filter(Boolean).join(" ") || user.email || "â€”";
+  if (!user) return <span className="text-muted-foreground">—</span>;
+  const name = [user.first_name, user.last_name].filter(Boolean).join(" ") || user.email || "—";
   const role = isRoleName(user.role) ? CAPABILITIES[user.role].label : humanize(user.role);
   return (
     <div className="min-w-0 text-sm">
@@ -229,6 +229,20 @@ export function ReportDetailDialog({
               <p className="rounded-md border border-border bg-muted/40 px-4 py-3 text-sm leading-relaxed text-foreground">
                 No meeting was held on this service date.
               </p>
+              {(report.created_by || report.updated_by) && (
+                <Section title="Submission">
+                  <dl className="grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-3">
+                    <Field label="Submitted">{dateTime(report.date_created)}</Field>
+                    {report.created_by && (
+                      <Field label="Submitted by">
+                        {approverName(report.created_by, units) ?? "Unknown user"}
+                        {isOnBehalf(report.created_by, cell) && <span className="text-muted-foreground"> · on behalf of the cell leader</span>}
+                      </Field>
+                    )}
+                    {report.updated_by && <Field label="Last updated by">{approverName(report.updated_by, units) ?? "Unknown user"}</Field>}
+                  </dl>
+                </Section>
+              )}
               <Section title={commentList.length > 1 ? `Comments (${commentList.length})` : "Comment"}>
                 <CommentTrail comments={commentList} units={units} />
               </Section>
@@ -240,7 +254,7 @@ export function ReportDetailDialog({
                 <dl className="grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-3">
                   <Field label="Service date">{fullDate(report.service_date)}</Field>
                   <Field label="Meeting held">
-                    {report.meeting_held === undefined ? "â€”" : report.meeting_held ? "Yes" : "No"}
+                    {report.meeting_held === undefined ? "—" : report.meeting_held ? "Yes" : "No"}
                   </Field>
                   <Field label="Status">{humanize(report.approval_status)}</Field>
                   <Field label="Submitted">{dateTime(report.date_created)}</Field>
@@ -320,7 +334,7 @@ export function ReportDetailDialog({
           </DialogHeader>
           <div className="p-5">
             {loading ? (
-              <p className="text-sm text-muted-foreground">Loading report detailsâ€¦</p>
+              <p className="text-sm text-muted-foreground">Loading report details…</p>
             ) : error ? (
               <p className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">{error}</p>
             ) : noReport ? (

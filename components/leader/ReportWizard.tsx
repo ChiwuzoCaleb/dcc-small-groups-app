@@ -139,13 +139,13 @@ const OFFERING_MIN_MESSAGE = `Total Offering must be at least NGN ${MIN_OFFERING
 export function ReportWizard({
   serviceDate,
   existing,
-  cellId,
+  cellCode,
   returnTo = "/cell",
 }: {
   serviceDate: string;
   existing: SundayReport | null;
-  /** Set when a leader submits on behalf of a cell; the API records who did it. */
-  cellId?: string;
+  /** Required for report creation, including submissions on behalf of a cell. */
+  cellCode?: string;
   returnTo?: string;
 }) {
   const router = useRouter();
@@ -586,14 +586,17 @@ export function ReportWizard({
         await updateReport.mutateAsync(payload);
         storeComment(existing.id, comment.trim());
       } else {
-        if (!cellId) {
+        if (!cellCode) {
           notify.error(
-            "Could not identify your cell for this report. Refresh the page and try again.",
+            "Could not identify the cell code for this report. Refresh the page and try again.",
           );
           return;
         }
 
-        const createPayload: CreateReportInput = { ...payload, cell: cellId };
+        const createPayload: CreateReportInput = {
+          ...payload,
+          cell_code: cellCode,
+        };
         const created = await createReport.mutateAsync(createPayload);
         storeComment(created?.id, comment.trim());
       }
