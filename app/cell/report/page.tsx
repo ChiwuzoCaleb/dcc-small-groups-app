@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { use, useMemo, useState } from "react";
 import { Card, PageHeader } from "@/components/ui";
 import { Button } from "@/components/ui/button";
 import { SundayCalendar } from "@/components/leader/SundayCalendar";
@@ -11,10 +11,13 @@ import { cellFrom } from "@/components/coordinator/kit";
 import { mostRecentSunday, formatServiceDate } from "@/lib/dates";
 import { colors } from "@/lib/tokens";
 
-export default function ReportPage() {
+export default function ReportPage({ searchParams }: { searchParams: Promise<{ date?: string }> }) {
+  const { date: dateParam } = use(searchParams);
   const { user } = useAuth();
   const latestSunday = useMemo(() => mostRecentSunday(new Date()).toISOString().slice(0, 10), []);
-  const [serviceDate, setServiceDate] = useState<string | null>(null);
+  const [serviceDate, setServiceDate] = useState<string | null>(
+    dateParam && /^\d{4}-\d{2}-\d{2}$/.test(dateParam) ? dateParam : null,
+  );
   const mine = useMyReports();
 
   const { reported, resubmittable } = useMemo(() => {
@@ -52,7 +55,6 @@ export default function ReportPage() {
         : null),
     id: profileCell.id ?? reportCell?.id ?? null,
   };
-  const cellCode = cell.code ?? undefined;
   const cellLabel = cell.code ?? cell.name;
   return (
     <>
@@ -84,7 +86,6 @@ export default function ReportPage() {
             key={serviceDate}
             serviceDate={serviceDate}
             existing={existing}
-            cellCode={cellCode}
           />
         </>
       )}

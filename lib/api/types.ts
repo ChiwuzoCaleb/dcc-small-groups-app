@@ -239,7 +239,8 @@ export interface SundayReport extends Partial<Omit<SundayReportFigures, "comment
 }
 
 /** Body for `POST /api/v1/reports/` — identify the target cell by its code. */
-export type CreateReportInput = { cell_code: string; service_date: string } & Partial<SundayReportFigures>;
+/** `cell_code` is only sent when submitting on behalf of a cell; a cell leader's own submission omits it. */
+export type CreateReportInput = { cell_code?: string; service_date: string } & Partial<SundayReportFigures>;
 
 /** Body for `PATCH /api/v1/reports/{id}/` — allowed only while `approval_status` is REJECTED. */
 export type UpdateReportInput = Partial<SundayReportFigures> & { service_date?: string };

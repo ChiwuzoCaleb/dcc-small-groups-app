@@ -144,17 +144,20 @@ export function ReportWizard({
 }: {
   serviceDate: string;
   existing: SundayReport | null;
-  /** Required for report creation, including submissions on behalf of a cell. */
+  /** Required only when submitting on behalf of a cell; cell leaders' own reports omit it. */
   cellCode?: string;
   returnTo?: string;
 }) {
   const router = useRouter();
 
   const status = existing?.approval_status ?? null;
-  const locked = status === "PENDING" || status === "APPROVED";
+  const locked = status === "APPROVED";
   const isResubmit = status === "REJECTED";
+  /** A pending or rejected report is changed in place (PATCH) instead of created. */
+  const isUpdate = status === "REJECTED" || status === "PENDING";
 
   const [step, setStep] = useState(0);
+  const [previewing, setPreviewing] = useState(false);
 
   const [values, setValues] = useState<Figures>(() =>
     figuresFrom(existing),
@@ -546,7 +549,15 @@ export function ReportWizard({
     return payload;
   }
 
-  async function submit() {
+  /** Validate, then show the full-report preview. Nothing is sent yet. */
+  function openPreview() {
+    if (validateForSubmit()) {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      setPreviewing(true);
+    }
+  }
+
+  function validateForSubmit(): boolean {
     /**
      * If the meeting did not hold, the comment is required.
      */
@@ -554,7 +565,7 @@ export function ReportWizard({
       showToast(
         "Add a comment explaining why the meeting didn't hold.",
       );
-      return;
+      return false;
     }
 
     /**
@@ -575,34 +586,40 @@ export function ReportWizard({
 
         goToField(invalidField);
 
-        return;
+        return false;
       }
+    }
+
+    return true;
+  }
+
+  async function submit() {
+    if (!validateForSubmit()) {
+      setPreviewing(false);
+      return;
     }
 
     const payload = buildPayload();
 
     try {
-      if (isResubmit && existing) {
+      if (isUpdate && existing) {
         await updateReport.mutateAsync(payload);
         storeComment(existing.id, comment.trim());
       } else {
-        if (!cellCode) {
-          notify.error(
-            "Could not identify the cell code for this report. Refresh the page and try again.",
-          );
-          return;
-        }
-
         const createPayload: CreateReportInput = {
           ...payload,
-          cell_code: cellCode,
+          ...(cellCode ? { cell_code: cellCode } : {}),
         };
         const created = await createReport.mutateAsync(createPayload);
         storeComment(created?.id, comment.trim());
       }
 
       notify.success(
-        isResubmit ? "Report resubmitted successfully" : "Report submitted successfully",
+        isResubmit
+          ? "Report resubmitted successfully"
+          : isUpdate
+            ? "Report updated successfully"
+            : "Report submitted successfully",
       );
       router.push(returnTo);
     } catch (err) {
@@ -614,6 +631,102 @@ export function ReportWizard({
 
   const current = REPORT_STEPS[step];
   const isCommentsStep = current.category === "Comments";
+
+  if (previewing) {
+    const sections = meetingHeld
+      ? REPORT_STEPS.filter((s) => s.fields.length > 0)
+      : [];
+    const submitLabel = isResubmit ? "Resubmit report" : isUpdate ? "Save changes" : "Submit report";
+
+    return (
+      <div
+        className="dcc-page"
+        style={{ padding: 28, display: "flex", flexDirection: "column", gap: 16, maxWidth: 820 }}
+      >
+        <div>
+          <div style={{ fontSize: 20, fontWeight: 600, letterSpacing: "-0.02em" }}>
+            Review your report
+          </div>
+          <div style={{ fontSize: 13, color: colors.muted, marginTop: 4 }}>
+            {formatServiceDate(new Date(serviceDate))}
+            {cellCode ? ` · Cell ${cellCode}` : ""} · check everything below, then submit.
+          </div>
+        </div>
+
+        <Card style={{ padding: 16, display: "flex", justifyContent: "space-between", fontSize: 13.5 }}>
+          <span style={{ fontWeight: 600 }}>Cell meeting held</span>
+          <span>{meetingHeld ? "Yes" : "No"}</span>
+        </Card>
+
+        {sections.map((section) => {
+          let lastGroup: string | undefined;
+          return (
+            <Card key={section.category} style={{ padding: 16 }}>
+              <div
+                style={{
+                  fontSize: 11.5,
+                  fontWeight: 700,
+                  color: colors.muted,
+                  textTransform: "uppercase",
+                  letterSpacing: "0.04em",
+                  marginBottom: 8,
+                }}
+              >
+                {section.category}
+              </div>
+              {section.fields.map((field) => {
+                const showGroup = field.group && field.group !== lastGroup;
+                lastGroup = field.group;
+                const value = values[field.key];
+                return (
+                  <div key={field.key}>
+                    {showGroup && (
+                      <div style={{ fontSize: 12, fontWeight: 600, color: colors.faint, margin: "10px 0 2px" }}>
+                        {field.group}
+                      </div>
+                    )}
+                    <div
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        padding: "6px 0",
+                        fontSize: 13.5,
+                        borderBottom: `1px solid ${colors.border}`,
+                      }}
+                    >
+                      <span>{field.label}</span>
+                      <span style={{ fontFamily: mono, fontWeight: 600 }}>
+                        {field.key === "total_offering" ? "NGN " : ""}
+                        {formatNumber(value ?? 0)}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </Card>
+          );
+        })}
+
+        <Card style={{ padding: 16 }}>
+          <div style={{ fontSize: 12, fontWeight: 600, color: colors.muted, marginBottom: 6 }}>
+            Comments
+          </div>
+          <div style={{ fontSize: 13.5, whiteSpace: "pre-wrap" }}>
+            {comment.trim() || "No comment"}
+          </div>
+        </Card>
+
+        <div style={{ display: "flex", justifyContent: "space-between" }}>
+          <Button variant="secondary" onClick={() => setPreviewing(false)} disabled={pending}>
+            Back to edit
+          </Button>
+          <Button variant="primary" onClick={submit} disabled={pending}>
+            {pending ? "Submitting…" : submitLabel}
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div
@@ -786,7 +899,7 @@ export function ReportWizard({
               >
                 {status === "APPROVED"
                   ? "This report is approved and locked."
-                  : "This report is submitted and awaiting review."}
+                  : "This report is locked."}
               </div>
             </Card>
           )}
@@ -960,6 +1073,9 @@ export function ReportWizard({
                               }}
                             >
                               {field.label}
+                              {field.key === "members_present" && (
+                                <span style={{ color: colors.red }}> *</span>
+                              )}
                             </span>
 
                             {isOffering ? (
@@ -1144,6 +1260,19 @@ export function ReportWizard({
                             )}
                           </label>
 
+                          {isOffering && !fieldError && (
+                            <div
+                              style={{
+                                marginTop: 3,
+                                marginBottom: 6,
+                                fontSize: 11.5,
+                                color: colors.faint,
+                              }}
+                            >
+                              Offering must be ₦100 or above.
+                            </div>
+                          )}
+
                           {fieldError && (
                             <div
                               id={`error-${field.key}`}
@@ -1197,14 +1326,10 @@ export function ReportWizard({
                   !locked && (
                     <Button
                       variant="primary"
-                      onClick={submit}
+                      onClick={openPreview}
                       disabled={submitDisabled}
                     >
-                      {pending
-                        ? "Submitting…"
-                        : isResubmit
-                          ? "Resubmit report"
-                          : "Submit report"}
+                      Preview report
                     </Button>
                   )
                 )}
@@ -1276,14 +1401,10 @@ export function ReportWizard({
                 >
                   <Button
                     variant="primary"
-                    onClick={submit}
+                    onClick={openPreview}
                     disabled={submitDisabled}
                   >
-                    {pending
-                      ? "Submitting…"
-                      : isResubmit
-                        ? "Resubmit report"
-                        : "Submit report"}
+                    Preview report
                   </Button>
                 </div>
               )}

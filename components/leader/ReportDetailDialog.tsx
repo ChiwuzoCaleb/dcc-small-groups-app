@@ -175,6 +175,7 @@ export function ReportDetailDialog({
   error,
   noReport = false,
   canDecide = false,
+  onEdit,
   onStartReport,
 }: {
   /** The report to show; `null` keeps the dialog closed. */
@@ -189,6 +190,8 @@ export function ReportDetailDialog({
   noReport?: boolean;
   /** Show Approve / Send back for a pending report (coordinators with approval rights). */
   canDecide?: boolean;
+  /** When set, a PENDING report shows an Edit button that lets a leader change it and resubmit. */
+  onEdit?: () => void;
   /** When set and the cell has no report, shows a "Start Report" button to submit on its behalf. */
   onStartReport?: () => void;
 }) {
@@ -208,6 +211,14 @@ export function ReportDetailDialog({
   const { section, area, zone, district, region } = report ?? {};
   const commentList = allReportComments(report);
   const units = [cell, section, area, zone, district, region];
+  const editButton =
+    onEdit && report?.approval_status === "PENDING" ? (
+      <div className="flex justify-end">
+        <Button type="button" variant="outline" onClick={onEdit}>
+          Edit report
+        </Button>
+      </div>
+    ) : null;
 
   return (
     <Dialog open={dialogOpen} onOpenChange={onOpenChange}>
@@ -246,6 +257,7 @@ export function ReportDetailDialog({
               <Section title={commentList.length > 1 ? `Comments (${commentList.length})` : "Comment"}>
                 <CommentTrail comments={commentList} units={units} />
               </Section>
+              {editButton}
             </div>
           ) : (
             <div className="flex-1 space-y-7 overflow-y-auto p-5">
@@ -319,6 +331,8 @@ export function ReportDetailDialog({
                   </div>
                 </Section>
               )}
+
+              {editButton}
 
               {canDecide && report.approval_status === "PENDING" && (
                 <ReportDecisionBar reportId={report.id} allowSendBack={!isLateSubmission(report)} onDone={() => onOpenChange(false)} />

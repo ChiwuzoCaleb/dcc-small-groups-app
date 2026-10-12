@@ -134,7 +134,7 @@ export function useCreateWhatsAppReport() {
   });
 }
 
-/** Edit a REJECTED report before resubmitting (only the submitting Cell Leader may). */
+/** Edit a REJECTED (resubmit) or PENDING report in place. */
 export function useUpdateReport(id: string) {
   return useApiMutation<SundayReport, UpdateReportInput>(
     (body) => ({ path: API_ROUTES.report(id), method: "PATCH", body }),

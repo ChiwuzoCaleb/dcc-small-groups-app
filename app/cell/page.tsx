@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { reportCommentText } from "@/lib/api/reportComments";
 import { colors, mono } from "@/lib/tokens";
 import { Input } from "@/components/ui/input";
@@ -32,6 +33,7 @@ const naira = new Intl.NumberFormat("en-NG", {
 
 export default function MyCellPage() {
   const { user } = useAuth();
+  const router = useRouter();
   const [greeting, setGreeting] = useState("Good morning");
 
   useEffect(() => {
@@ -416,6 +418,7 @@ export default function MyCellPage() {
 
       <ReportDetailDialog
         report={selected}
+        onEdit={selected?.service_date ? () => router.push(`/cell/report?date=${selected.service_date}`) : undefined}
         onOpenChange={(open) => !open && setSelectedId(null)}
       />
     </>
