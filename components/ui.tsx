@@ -10,6 +10,7 @@ export function TextInput({
   value,
   onChange,
   placeholder,
+  autoComplete,
   type = "text",
   mono = false,
   radius = 12,
@@ -20,6 +21,7 @@ export function TextInput({
   value: string;
   onChange: (v: string) => void;
   placeholder?: string;
+  autoComplete?: string;
   type?: string;
   mono?: boolean;
   radius?: number;
@@ -40,6 +42,7 @@ export function TextInput({
       onFocus={() => setFocused(true)}
       onBlur={() => setFocused(false)}
       placeholder={placeholder}
+      autoComplete={autoComplete}
       style={{
         width: "100%",
         border: `1.5px solid ${focused ? colors.red : colors.borderStrong}`,

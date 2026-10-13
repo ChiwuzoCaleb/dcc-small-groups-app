@@ -105,6 +105,12 @@ export interface PasswordResetConfirmInput {
   password_confirmation: string;
 }
 
+export interface ChangePasswordInput {
+  old_password: string;
+  new_password: string;
+  confirm_password: string;
+}
+
 export interface InviteUserInput {
   email: string;
   role_id: string;

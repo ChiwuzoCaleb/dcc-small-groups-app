@@ -7,9 +7,9 @@
  * ever sees the decoded claims returned by `GET /api/auth/session`.
  */
 
-import { useCallback, useEffect } from "react";
+import { useCallback } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { authApi, setAuthExpiredHandler, ApiError } from "@/lib/api/client";
+import { authApi, ApiError } from "@/lib/api/client";
 import { queryKeys } from "./useApi";
 
 export interface SessionUser {
@@ -40,15 +40,6 @@ export function useAuth(): UseAuthResult {
   });
 
   const user = (session.data?.user ?? null) as SessionUser | null;
-
-  // When any proxied call 401s unrecoverably, drop the cached session so the
-  // app can route to sign-in.
-  useEffect(() => {
-    setAuthExpiredHandler(() => {
-      queryClient.setQueryData(queryKeys.session, { authenticated: false, user: null });
-    });
-    return () => setAuthExpiredHandler(null);
-  }, [queryClient]);
 
   const login = useCallback(
     async (identifier: string, password: string) => {

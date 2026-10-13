@@ -10,13 +10,16 @@
  * cold-starts.
  */
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import {
   QueryClient,
   QueryClientProvider,
+  useQueryClient,
   type DefaultOptions,
 } from "@tanstack/react-query";
 import { ApiError } from "@/lib/api/errors";
+import { setAuthExpiredHandler } from "@/lib/api/client";
 
 const RETRYABLE = new Set([0, 408, 425, 429, 500, 502, 503, 504]);
 
@@ -42,5 +45,30 @@ const defaultOptions: DefaultOptions = {
 
 export function QueryProvider({ children }: { children: React.ReactNode }) {
   const [client] = useState(() => new QueryClient({ defaultOptions }));
-  return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+  return (
+    <QueryClientProvider client={client}>
+      <AuthExpiryRedirect />
+      {children}
+    </QueryClientProvider>
+  );
+}
+
+function AuthExpiryRedirect() {
+  const pathname = usePathname();
+  const router = useRouter();
+  const queryClient = useQueryClient();
+  const redirecting = useRef(false);
+
+  useEffect(() => {
+    redirecting.current = false;
+    setAuthExpiredHandler(() => {
+      if (redirecting.current) return;
+      redirecting.current = true;
+      queryClient.clear();
+      if (pathname !== "/sign-in") router.replace("/sign-in");
+    });
+    return () => setAuthExpiredHandler(null);
+  }, [pathname, queryClient, router]);
+
+  return null;
 }

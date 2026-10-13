@@ -57,6 +57,7 @@ export const API_ROUTES = {
   resendActivationLink: "v1/user/resend-activation-link/",
   passwordReset: "v1/user/password-reset/",
   passwordResetConfirm: "v1/user/password-reset/confirm/",
+  changePassword: "v1/user/change-password/",
 
   // --- reports --------------------------------------------------------
   reports: "v1/reports/",

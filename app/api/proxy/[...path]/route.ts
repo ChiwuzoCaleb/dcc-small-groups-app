@@ -15,6 +15,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { ACCESS_COOKIE, REFRESH_COOKIE } from "@/lib/api/config";
 import { ApiError } from "@/lib/api/errors";
 import {
+  clearTokensOnResponse,
   decodeJwt,
   isJwtExpired,
   refreshTokens,
@@ -45,7 +46,9 @@ const STRIP_RESPONSE_HEADERS = new Set([
 ]);
 
 function unauthorized(message: string, code?: string) {
-  return NextResponse.json({ detail: message, ...(code ? { code } : {}) }, { status: 401 });
+  const response = NextResponse.json({ detail: message, ...(code ? { code } : {}) }, { status: 401 });
+  clearTokensOnResponse(response);
+  return response;
 }
 
 function badGateway(err: unknown) {
@@ -158,7 +161,9 @@ async function handle(req: NextRequest, ctx: ProxyContext): Promise<NextResponse
 
   const body = await upstream.arrayBuffer();
   const res = buildClientResponse(upstream, body);
-  if (rotated && decodeJwt(rotated.access)) {
+  if (upstream.status === 401) {
+    clearTokensOnResponse(res);
+  } else if (rotated && decodeJwt(rotated.access)) {
     writeTokensOnResponse(res, rotated);
   }
   return res;
