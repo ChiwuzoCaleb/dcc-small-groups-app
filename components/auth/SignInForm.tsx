@@ -61,6 +61,11 @@ export function SignInForm() {
             <span style={{ display: "block", fontSize: 11.5, fontWeight: 600, color: colors.muted, marginBottom: 7 }}>Password</span>
             <TextInput value={password} onChange={setPassword} type="password" placeholder="••••••••" />
           </label>
+          <div style={{ textAlign: "right", marginTop: -6 }}>
+            <a href="/forgot-password" style={{ fontSize: 12, fontWeight: 600 }}>
+              Forgot password?
+            </a>
+          </div>
         </div>
 
         {error && (
